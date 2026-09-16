@@ -2,87 +2,183 @@
 % 06_results.tex
 % Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
 % ==============================================================================
-% TODO [Thành viên 2]:
-% - Trình bày kết quả theo đúng 3 câu hỏi nghiên cứu (RQs):
-%   * RQ1: Fixed-size đạt Hit@1 và MRR cao nhất, còn Structure-aware đạt Hit@10 và Recall@10 cao nhất!
-%   * RQ2: Structure-aware vượt trội ở Evidence Coverage và All-Evidence-Retrieved Rate (AER)!
-%   * RQ3: Fixed-size đạt Token F1 tổng thể cao nhất, trong khi Prompt-based đạt Token Recall cao nhất!
-% - Trình bày kết quả phân hóa theo độ khó (Easy: 60, Medium: 40, Hard: 40).
-% - Phân tích mối quan hệ nhân quả: Lấy đủ evidence tác động thế nào tới chất lượng câu trả lời.
-% - Bảng kết quả tổng hợp đầy đủ các cột số liệu chính thức.
-% ==============================================================================
 
-\section{Experimental Results}
+\section{Kết quả Thực nghiệm}
 \label{sec:results}
 
-We structure our empirical analysis around the three central research questions, presenting overall benchmark performance followed by stratified difficulty breakdowns.
+Chương này trình bày các kết quả thực nghiệm thu được từ 420 lượt đánh giá câu trả lời đối sánh theo cặp trên 140 câu hỏi benchmark, tương ứng với ba chiến lược chunking: Fixed-size, Structure-aware và Prompt-based (sử dụng artifact đông băng \texttt{prompt\_based\_v1}). Toàn bộ các phân tích định lượng dưới đây được trích xuất trực tiếp từ dữ liệu kiểm toán hệ thống, nhằm giải đáp tường minh ba câu hỏi nghiên cứu cốt lõi (RQs) và làm sáng tỏ các mối quan hệ trade-off trong chu trình RAG trên tài liệu kỹ thuật Markdown.
+
+\subsection{Tổng quan kết quả thực nghiệm (Main Experimental Results)}
+\label{subsec:main_results}
+
+Bảng~\ref{tab:main_results} tổng hợp toàn bộ hiệu năng của ba chiến lược trên ba phương diện chính: Retrieval \& Ranking, Evidence Recovery và Answer Generation Quality dưới cùng một giới hạn retrieval token budget 2.048 tokens.
 
 \begin{table*}[t]
-    \centering
-    \small
-    \setlength{\tabcolsep}{5pt}
-    \begin{tabular}{lcccccccc}
-        \toprule
-        \multirow{2}{*}{\textbf{Chunking Strategy}} & \multicolumn{3}{c}{\textbf{Retrieval Ranking (RQ1)}} & \multicolumn{2}{c}{\textbf{Evidence Recovery (RQ2)}} & \multicolumn{3}{c}{\textbf{Downstream Generation (RQ3)}} \\
-        \cmidrule(lr){2-4} \cmidrule(lr){5-6} \cmidrule(lr){7-9}
-        & \textbf{Hit@1} & \textbf{MRR} & \textbf{Recall@10} & \textbf{Coverage (\%)} & \textbf{AER (\%)} & \textbf{Token P} & \textbf{Token R} & \textbf{Token F1} \\
-        \midrule
-        Fixed-Size (512 / 64)       & \textbf{0.671} & \textbf{0.742} & 0.829 & 71.4\% & 52.8\% & \textbf{63.8} & 61.2 & \textbf{62.5} \\
-        Structure-Aware (AST)      & 0.628 & 0.715 & \textbf{0.893} & \textbf{86.3\%} & \textbf{71.4\%} & 58.4 & 64.9 & 61.4 \\
-        Prompt-Based (\texttt{v1})  & 0.614 & 0.698 & 0.857 & 79.1\% & 61.4\% & 55.2 & \textbf{66.8} & 60.4 \\
-        \bottomrule
-    \end{tabular}
-    \caption{Comprehensive evaluation results comparing the three chunking strategies across Retrieval Ranking (RQ1), Evidence Recovery (RQ2), and Downstream Generation Fidelity (RQ3) on the 140 benchmark queries.}
-    \label{tab:main_results}
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{lccccccccc}
+\toprule
+\multirow{2}{*}{\textbf{Strategy}} & \multicolumn{4}{c}{\textbf{Retrieval \& Ranking}} & \multicolumn{2}{c}{\textbf{Evidence Recovery}} & \multicolumn{3}{c}{\textbf{Answer Generation Quality}} \\
+\cmidrule(lr){2-5} \cmidrule(lr){6-7} \cmidrule(lr){8-10}
+& \textbf{Hit@1} & \textbf{Hit@10} & \textbf{MRR} & \textbf{Recall@10} & \textbf{Coverage} & \textbf{AER (\%)} & \textbf{Precision} & \textbf{Recall} & \textbf{Token F1} \\
+\midrule
+Fixed-size & \textbf{0.8071} & 0.9643 & \textbf{0.8732} & 0.9429 & 0.6905 & 57.14\% & \textbf{0.2858} & \underline{0.7420} & \textbf{0.3830} \\
+Structure-aware & \underline{0.7786} & \textbf{1.0000} & \underline{0.8692} & \textbf{0.9857} & \textbf{0.7476} & \textbf{63.57\%} & \underline{0.2798} & 0.7398 & \underline{0.3766} \\
+Prompt-based & 0.7571 & \underline{0.9857} & 0.8508 & \underline{0.9786} & \underline{0.7320} & \underline{61.43\%} & 0.2707 & \textbf{0.7555} & 0.3721 \\
+\bottomrule
+\end{tabular}
+\caption{Tổng hợp kết quả thực nghiệm so sánh ba chiến lược chunking trên 140 câu hỏi benchmark dưới cùng retrieval token budget (2.048 tokens). Số liệu in đậm thể hiện kết quả tốt nhất (\textbf{best performance}), số liệu gạch chân thể hiện kết quả tốt thứ nhì (\underline{second-best}).}
+\label{tab:main_results}
 \end{table*}
 
-\subsection{RQ1: Early Retrieval Ranking vs. Deep Candidate Recall}
-As shown in Table~\ref{tab:main_results}, the retrieval ranking results demonstrate a striking divergence between top-1 precision and top-10 recall:
+Kết quả tổng quan chỉ ra rằng không có bất kỳ chiến lược chunking đơn lẻ nào chiếm ưu thế tuyệt đối trên mọi chỉ số:
 \begin{itemize}
-    \item \textbf{Fixed-Size Dominance in Early Ranking:} Fixed-size chunking secures the highest Hit@1 ($0.671$) and MRR ($0.742$). The larger, uniform 512-token chunks with 64-token overlap concentrate multiple co-occurring query keywords into a single dense embedding, yielding strong top-1 similarity scores.
-    \item \textbf{Structure-Aware Superiority at Deeper Ranks:} In contrast, Structure-aware chunking achieves the highest Hit@10 ($0.921$) and Recall@10 ($0.893$). Because structure-aware chunks respect section boundaries and do not coalesce sibling sections, they avoid semantic dilution and successfully elevate relevant sub-sections into the top-10 candidate pool.
+    \item \textbf{Fixed-size} dẫn đầu ở các chỉ số early ranking tại tầng retrieval với $\text{Hit@1} = 0.8071$ và $\text{MRR} = 0.8732$, đồng thời đạt $\text{Token F1} = 0.3830$ cao nhất ở đầu ra sinh câu trả lời downstream generation.
+    \item \textbf{Structure-aware} áp đảo ở độ bao phủ bằng chứng và các thứ hạng sâu hơn, thiết lập hiệu năng vượt trội với $\text{Hit@10} = 1.0000$, $\text{Recall@10} = 0.9857$, $\text{Evidence Coverage} = 0.7476$ và $\text{All-Evidence-Retrieved Rate} = 63.57\%$.
+    \item \textbf{Prompt-based} đóng vai trò trung gian cân bằng, đạt $\text{Token Recall} = 0.7555$ cao nhất trong mô hình sinh và duy trì khả năng thu hồi bằng chứng ở mức cao ($\text{Coverage} = 0.7320$).
 \end{itemize}
 
-\subsection{RQ2: Evidence Coverage and All-Evidence Recovery}
-In multi-span evidence grounding, Structure-aware chunking demonstrates decisive empirical superiority:
+\subsection{RQ1: Retrieval Ranking và Early Precision}
+\label{subsec:rq1_ranking}
+
+Để trả lời RQ1, chúng tôi phân tích hành vi của bộ dense retrieval khi xếp hạng các ứng viên ban đầu. Kết quả thực nghiệm bộc lộ một sự phân hóa sâu sắc giữa early precision ở thứ hạng đầu và deep candidate recall ở các thứ hạng sâu.
+
+\paragraph{Ưu thế xếp hạng sớm của Fixed-size.}
+Chiến lược Fixed-size đạt $\text{Hit@1} = 0.8071$, vượt trội hơn hẳn so với Structure-aware ($0.7786$, chênh lệch $+0.0285$ tuyệt đối) và Prompt-based ($0.7571$, chênh lệch $+0.0500$ tuyệt đối). Về chỉ số MRR, Fixed-size cũng giữ vị trí số một với $0.8732$ so với $0.8692$ của Structure-aware và $0.8508$ của Prompt-based. Nguyên nhân bắt nguồn từ đặc tính kích thước chunk:
 \begin{itemize}
-    \item \textbf{High Evidence Coverage:} Structure-aware chunking recovers $86.3\%$ of all gold evidence spans, outperforming Fixed-size ($71.4\%$) by $+14.9\%$ absolute.
-    \item \textbf{All-Evidence-Retrieved Rate (AER):} For complex queries requiring multiple evidence spans, Structure-aware chunking achieves an AER of $71.4\%$ (vs.\ $52.8\%$ for Fixed-size). Because AST chunks do not bisect code listings, complete functional evidence is preserved intact.
+    \item Các chunk Fixed-size có độ dài trung bình lớn nhất ($447.1$ tokens, tập trung dày đặc ở ngưỡng trần 512 tokens), kết hợp với cơ chế sliding-window overlap 64 tokens ($11.22\%$ redundancy, tương ứng $58.623$ token trùng lặp). Kích thước lớn này cho phép một chunk bao hàm đồng thời nhiều từ khóa và ngữ cảnh đồng xuất hiện trong câu truy vấn của người dùng.
+    \item Khi mô hình embedding (\texttt{text-embedding-3-small}) nén thông tin, chunk có mật độ từ khóa phong phú và ngữ cảnh rộng sẽ tạo ra vector biểu diễn có Cosine similarity vượt trội với câu hỏi, giúp đẩy chunk này lên vị trí xếp hạng $r=1$ một cách ổn định.
 \end{itemize}
 
-\subsection{RQ3: Answer Generation and Lexical Fidelity}
-Downstream answer synthesis under \texttt{gpt-5-mini} reveals a notable trade-off between precision and recall:
+\paragraph{Sự bứt phá của Structure-aware ở thứ hạng sâu.}
+Ngược lại, khi mở rộng phạm vi ứng viên sang Top-5 và Top-10, Structure-aware nhanh chóng vượt lên dẫn đầu:
 \begin{itemize}
-    \item \textbf{Fixed-Size Answer F1:} Fixed-size chunking attains the highest overall Token F1 ($62.5$) and Token Precision ($63.8$). The fewer, larger chunks present a less fragmented reading context to the generator, reducing synthesis noise.
-    \item \textbf{Prompt-Based Token Recall:} Prompt-based chunking achieves the highest Token Recall ($66.8$), as the model-guided segments capture rich peripheral context, though sometimes at the cost of precision.
+    \item Ở chỉ số Hit@5, cả Structure-aware và Prompt-based đều đạt $0.9786$, vượt qua Fixed-size ($0.9643$).
+    \item Ở chỉ số Hit@10, Structure-aware đạt tỷ lệ hoàn hảo $1.0000$ ($140/140$ câu hỏi đều tìm thấy ít nhất một nguồn tài liệu liên quan trong Top-10), so với $0.9857$ của Prompt-based và $0.9643$ của Fixed-size.
+    \item Về Recall@10, Structure-aware thu hồi được $98.57\%$ tổng số tài liệu nguồn liên quan, vượt trội so với Prompt-based ($97.86\%$) và Fixed-size ($94.29\%$).
+\end{itemize}
+Cơ chế đằng sau hiện tượng này là việc bảo toàn ranh giới heading hierarchy và khối nguyên tử của AST parser. Nhờ non-coalescing sibling constraint, Structure-aware tránh được hiện tượng semantic dilution. Các section nhỏ mang nội dung chuyên biệt cao không bị hòa tan vào các khối văn bản lớn, giúp vector index dễ dàng nhận diện và nâng các đoạn tài liệu thứ cấp nhưng quan trọng vào Top-10 ứng viên.
+
+\subsection{RQ2: Khả năng Thu hồi Bằng chứng trong Ngân sách Token (Evidence Recovery)}
+\label{subsec:rq2_evidence}
+
+RQ2 khảo sát năng lực thu hồi các đơn vị gold evidence ($\mathcal{E}^*$) dưới ràng buộc nghiêm ngặt của retrieval token budget ($B = 2.048$ tokens). Đây là thước đo mang tính quyết định đối với các hệ thống RAG thực tế, bởi vì mô hình sinh luôn bị giới hạn bởi context window và chi phí tính toán.
+
+\paragraph{Sự vượt trội của Structure-aware.}
+Đối với 233 đơn vị gold evidence được trích xuất độc lập, Structure-aware thể hiện ưu thế vượt trội:
+\begin{itemize}
+    \item \textbf{Evidence Coverage:} Structure-aware đạt $0.7476$ ($74.76\%$), cao hơn rõ rệt so với Prompt-based ($73.20\%$) và bỏ xa Fixed-size ($69.05\%$, chênh lệch $+5.71\%$ tuyệt đối).
+    \item \textbf{All-Evidence-Retrieved Rate (AER):} Đối với các câu hỏi phức tạp đòi hỏi thu hồi đầy đủ $100\%$ các bằng chứng rải rác, Structure-aware đạt tỷ lệ $63.57\%$, cao hơn Prompt-based ($61.43\%$) và vượt trội so với Fixed-size ($57.14\%$, chênh lệch $+6.43\%$ tuyệt đối).
 \end{itemize}
 
-\subsection{Performance Stratification by Difficulty Tier}
-Table~\ref{tab:difficulty_breakdown} details how chunking strategies perform across query difficulty tiers (Easy: 60, Medium: 40, Hard: 40). On Easy single-section queries, Fixed-size chunking performs best; however, on Hard cross-document queries requiring multi-span aggregation, Structure-aware chunking delivers the highest AER and answer completeness.
+\paragraph{Cơ chế tối ưu hóa budget packing.}
+Ưu thế thu hồi bằng chứng của Structure-aware được giải thích trực tiếp thông qua động học đóng gói token (budget packing efficiency):
+\begin{itemize}
+    \item Do kích thước trung bình của các chunk Structure-aware nhỏ và hạt mịn ($165.1$ tokens so với $447.1$ tokens của Fixed-size), thuật toán greedy accumulator có thể chọn trung bình $14.64$ chunks cho mỗi câu hỏi, gấp gần 3 lần so với $4.94$ chunks của Fixed-size (Bảng~\ref{tab:context_utilization}).
+    \item Kích thước hạt mịn giúp Structure-aware khai thác tới $99.57\%$ dung lượng ngân sách 2.048 tokens ($2039.3$ raw tokens), dung lượng lãng phí trung bình chỉ là $8.7$ tokens. Ngược lại, Fixed-size để lãng phí trung bình $31.4$ tokens ($2016.6$ raw tokens, hiệu suất $98.47\%$) do các chunk 512 tokens quá lớn không thể nhồi vừa vào khoảng trống còn lại ở cuối ngân sách. Prompt-based đạt mức sử dụng $2027.0$ raw tokens ($98.97\%$) với $21.0$ tokens dư thừa.
+    \item Việc chọn được nhiều chunk độc lập cho phép bộ chọn lọc vươn sâu hơn vào danh sách ứng viên (thứ hạng tối đa trung bình được chọn là $29.37$ ở Structure-aware so với $18.71$ ở Prompt-based và $13.47$ ở Fixed-size), giúp gom nhặt thành công các bằng chứng phân tán mà Fixed-size buộc phải bỏ sót.
+\end{itemize}
 
-\begin{table}[h]
-    \centering
-    \small
-    \begin{tabular}{llccc}
-        \toprule
-        \textbf{Difficulty} & \textbf{Strategy} & \textbf{MRR} & \textbf{Cov.} & \textbf{Token F1} \\
-        \midrule
-        \multirow{3}{*}{Easy (60)} 
-        & Fixed-Size      & \textbf{0.812} & 82.5\% & \textbf{67.2} \\
-        & Structure-Aware & 0.774          & \textbf{91.2\%} & 65.4 \\
-        & Prompt-Based    & 0.751          & 86.8\% & 64.1 \\
-        \midrule
-        \multirow{3}{*}{Medium (40)} 
-        & Fixed-Size      & \textbf{0.702} & 67.8\% & \textbf{61.1} \\
-        & Structure-Aware & 0.689          & \textbf{84.5\%} & 60.8 \\
-        & Prompt-Based    & 0.665          & 77.2\% & 59.5 \\
-        \midrule
-        \multirow{3}{*}{Hard (40)} 
-        & Fixed-Size      & 0.678          & 58.4\% & 54.8 \\
-        & Structure-Aware & \textbf{0.682} & \textbf{80.2\%} & \textbf{56.2} \\
-        & Prompt-Based    & 0.641          & 70.1\% & 54.9 \\
-        \bottomrule
-    \end{tabular}
-    \caption{Performance breakdown across query difficulty tiers.}
-    \label{tab:difficulty_breakdown}
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Strategy} & \textbf{Chunks} & \textbf{Raw Tokens} & \textbf{Utilization} & \textbf{Overhead} \\
+\midrule
+Fixed-size & 4.94 & 2016.6 & 98.47\% & 27.1 \\
+Structure-aware & 14.64 & 2039.3 & 99.57\% & 75.5 \\
+Prompt-based & 8.62 & 2027.0 & 98.97\% & 37.8 \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Đặc tính ngữ cảnh trung bình mỗi câu hỏi dưới retrieval token budget 2.048 tokens.}
+\label{tab:context_utilization}
 \end{table}
+
+\subsection{RQ3: Chất lượng Câu trả lời Sinh ra (Answer Generation Fidelity)}
+\label{subsec:rq3_generation}
+
+RQ3 đánh giá tác động cuối cùng của ngữ cảnh được thu hồi lên độ chính xác của câu trả lời do \texttt{gpt-5-mini} sinh ra. Kết quả ở phương diện này mang lại những phát hiện bất ngờ và sâu sắc về mặt kiến trúc.
+
+\paragraph{Nghịch lý chất lượng câu trả lời.}
+Mặc dù thua kém về Evidence Coverage và Recall@10, Fixed-size lại đạt điểm số tổng thể cao nhất ở cả Token Precision ($0.2858$) và Token F1 ($0.3830$, trung vị $0.3675$, khoảng tin cậy 95\% bootstrap $[0.3570, 0.4097]$). Structure-aware đứng thứ nhì với $\text{Token F1} = 0.3766$ (trung vị $0.3581$, CI $[0.3507, 0.4032]$) và $\text{Token Precision} = 0.2798$. Trong khi đó, Prompt-based đạt Token Recall cao nhất ($0.7555$) nhưng Token Precision thấp nhất ($0.2707$), dẫn đến $\text{Token F1} = 0.3721$ (trung vị $0.3560$, CI $[0.3481, 0.3965]$).
+
+\paragraph{Hiện tượng Context Fragmentation.}
+Để làm sáng tỏ nghịch lý tại sao phương pháp thu hồi nhiều bằng chứng hơn (Structure-aware) lại không mang lại điểm Token F1 cao nhất, chúng tôi phân tích cấu trúc của prompt đưa vào generator:
+\begin{itemize}
+    \item \textbf{Synthesis Burden:} Để đưa được nhiều bằng chứng vào ngân sách, Structure-aware phải chia nhỏ ngữ cảnh thành trung bình $14.64$ khối rời rạc, đòi hỏi $75.5$ tokens phụ trợ cho các nhãn \texttt{[CONTEXT n]} và dấu phân cách. Ngữ cảnh bị phân mảnh cao độ buộc mô hình sinh phải thực hiện thao tác liên kết thông tin phức tạp giữa nhiều mảnh vụn, làm tăng nguy cơ bỏ sót các liên kết cú pháp tự nhiên hoặc sinh câu trả lời rườm rà.
+    \item \textbf{Context Continuity:} Fixed-size chỉ cung cấp $4.94$ khối văn bản lớn. Mặc dù có chứa một lượng gối đầu thừa ($11.22\%$), các chunk lớn bảo toàn được dòng chảy tự nhiên của bài viết kỹ thuật, giúp LLM dễ dàng đọc hiểu, trích xuất nguyên văn thuật ngữ và tổng hợp câu trả lời cô đọng, từ đó nâng cao Token Precision.
+    \item \textbf{Prompt-based và độ phủ từ vựng:} Các chunk ngữ nghĩa của Prompt-based bao quát rộng các khía cạnh liên quan của câu hỏi, giúp mô hình sinh thu hồi được nhiều token của đáp án chuẩn nhất ($\text{Token Recall} = 0.7555$), nhưng việc diễn giải mở rộng lại làm giảm độ tập trung từ vựng ($\text{Token Precision} = 0.2707$).
+\end{itemize}
+
+\paragraph{Ý nghĩa thống kê và độ bất định.}
+Kiểm định hoán vị có dấu (paired sign-flip permutation tests với 100.000 lượt mô phỏng, hiệu chỉnh Holm-Bonferroni ở $\alpha = 0.05$) xác nhận rằng sự chênh lệch điểm số Token F1 giữa ba phương pháp không đạt mức có ý nghĩa thống kê:
+\begin{itemize}
+    \item Fixed-size so với Structure-aware: $\Delta = +0.0064$, khoảng tin cậy 95\% bootstrap $[-0.0114, 0.0235]$, $p = 0.9585$.
+    \item Fixed-size so với Prompt-based: $\Delta = +0.0108$, khoảng tin cậy 95\% bootstrap $[-0.0083, 0.0301]$, $p = 0.8260$.
+    \item Structure-aware so với Prompt-based: $\Delta = +0.0045$, khoảng tin cậy 95\% bootstrap $[-0.0159, 0.0262]$, $p = 0.9585$.
+\end{itemize}
+Mọi khoảng tin cậy đều bao hàm giá trị 0. Phân tích độ ổn định xếp hạng bootstrap (bootstrap ranking stability qua 50.000 mẫu lặp) cho thấy Fixed-size đạt điểm F1 trung bình cao nhất trong $68.7\%$ số lần lấy mẫu, Structure-aware dẫn đầu trong $20.9\%$ và Prompt-based trong $10.4\%$. Kết quả này chứng minh rằng việc bảo toàn cấu trúc văn bản dù đem lại lợi ích rõ rệt ở tầng retrieval nhưng chưa tạo ra bước nhảy vọt có ý nghĩa thống kê ở tầng downstream generation đối với mô hình \texttt{gpt-5-mini}.
+
+\subsection{Phân tích Hiệu năng theo Độ khó của Câu hỏi (Breakdown by Question Difficulty)}
+\label{subsec:difficulty_breakdown}
+
+Để tìm hiểu sâu hơn các tình huống mà từng chiến lược phát huy thế mạnh, chúng tôi phân rã kết quả theo ba mức độ khó của 140 câu hỏi benchmark trong Bảng~\ref{tab:difficulty_results}.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Difficulty} & \textbf{Count} & \textbf{Fixed-size} & \textbf{Structure-aware} & \textbf{Prompt-based} \\
+\midrule
+Easy & 60 & \textbf{0.3892} & \underline{0.3831} & 0.3723 \\
+Medium & 40 & \underline{0.3863} & 0.3862 & \textbf{0.3939} \\
+Hard & 40 & \textbf{0.3702} & \underline{0.3571} & 0.3501 \\
+\midrule
+Overall & 140 & \textbf{0.3830} & \underline{0.3766} & 0.3721 \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Hiệu năng Token F1 phân tầng theo question difficulty.}
+\label{tab:difficulty_results}
+\end{table}
+
+\paragraph{Nhóm Easy (60 câu -- Single-section).}
+Bằng chứng của nhóm câu hỏi này nằm trọn vẹn trong một section duy nhất của tài liệu. Fixed-size đạt Token F1 cao nhất ($0.3892$), xếp trên Structure-aware ($0.3831$) và Prompt-based ($0.3723$). Trong tình huống đơn section, ưu thế của chunk 512 tokens phát huy tối đa: toàn bộ câu hỏi và câu trả lời đều nằm gọn trong một chunk lớn duy nhất, giúp mô hình sinh nắm bắt toàn vẹn ngữ cảnh xung quanh mà không phải ghép nối thông tin.
+
+\paragraph{Nhóm Medium (40 câu -- Cross-section).}
+Các câu hỏi này đòi hỏi tổng hợp thông tin rải rác giữa các section khác nhau trong cùng một tài liệu Angular. Ở nhóm này, Prompt-based vươn lên dẫn đầu với $\text{Token F1} = 0.3939$, vượt qua Fixed-size ($0.3863$) và Structure-aware ($0.3862$). Prompt-based đạt hiệu quả cao nhờ khả năng phân định ranh giới khối dựa trên ngữ nghĩa của LLM, giúp gom nhóm các phần liên quan mật thiết thành các khối kích thước vừa phải ($255.1$ tokens), vừa tránh được sự cắt đôi section của Fixed-size, vừa không bị phân mảnh quá mức như Structure-aware.
+
+\paragraph{Nhóm Hard (40 câu -- Cross-document).}
+Đây là nhóm thử thách nhất khi bằng chứng nằm rải rác trên nhiều tài liệu kỹ thuật hoàn toàn độc lập. Hiệu năng của tất cả các phương pháp đều sụt giảm đáng kể. Tuy nhiên, Fixed-size duy trì sự ổn định tốt nhất với $\text{Token F1} = 0.3702$, tạo khoảng cách vượt trội so với Structure-aware ($0.3571$, chênh lệch $\Delta = +0.0131$) và Prompt-based ($0.3501$, chênh lệch $\Delta = +0.0201$). Khi phải truy xuất qua nhiều tài liệu khác nhau, các chunk cực nhỏ của Structure-aware đưa vào một lượng lớn các đoạn tài liệu ngoại lai (distractors), gây quá tải cho bộ nhớ ngữ cảnh của generator. Trong khi đó, các chunk lớn của Fixed-size giữ vững các khối tri thức cô đọng của từng tài liệu, hạn chế sự nhiễu loạn thông tin chéo.
+
+\subsection{Mối tương quan giữa Evidence Retrieval và Answer F1}
+\label{subsec:correlation_analysis}
+
+Một câu hỏi mang tính nền tảng trong nghiên cứu RAG là: \textit{Liệu việc thu hồi trọn vẹn 100\% bằng chứng chuẩn (All-Evidence-Retrieved) có đảm bảo sinh ra câu trả lời có Token F1 cao nhất hay không?}
+
+\paragraph{Hệ số tương quan thứ hạng Spearman.}
+Phân tích tương quan phi tham số giữa Evidence Coverage và Token F1 trên 140 câu hỏi cho thấy mối quan hệ đồng biến nhưng ở mức độ yếu:
+\begin{itemize}
+    \item Fixed-size: $\rho = 0.162$.
+    \item Structure-aware: $\rho = 0.123$.
+    \item Prompt-based: $\rho = 0.135$.
+\end{itemize}
+Các hệ số tương quan thấp này phản ánh sự thiếu nhất quán giữa tầng truy xuất và tầng sinh câu trả lời. Mặc dù việc thu hồi trọn vẹn toàn bộ bằng chứng mang lại điểm số F1 trung bình cao hơn trên từng chiến lược riêng biệt (mức tăng $\text{Token F1}$ khi đạt AER là $+0.059$ ở Fixed-size, $+0.040$ ở Structure-aware và $+0.032$ ở Prompt-based), nhưng ở cấp độ toàn hệ thống, chiến lược có tỷ lệ thu hồi bằng chứng cao nhất (Structure-aware với $63.57\%$ AER) lại không phải là chiến lược đạt điểm Token F1 cao nhất.
+
+\paragraph{Bản chất của Retrieval-Generation Disconnect.}
+Sự không đồng nhất giữa kết quả retrieval và answer quality bắt nguồn từ ba nguyên nhân chính:
+\begin{enumerate}
+    \item \textbf{Bản chất từ vựng của Token F1:} Token F1 đánh giá dựa trên sự trùng khớp từ vựng chính xác (lexical overlap) với đáp án tham chiếu. Khi được cung cấp đầy đủ bằng chứng nhưng bị phân mảnh, mô hình ngôn ngữ có xu hướng diễn đạt lại (paraphrase) câu trả lời bằng văn phong tự nhiên thay vì trích xuất nguyên văn, dẫn đến việc bị phạt điểm Token F1 dù nội dung hoàn toàn chuẩn xác về mặt ngữ nghĩa.
+    \item \textbf{Độ bền vững trước sự thiếu hụt cục bộ:} Các mô hình ngôn ngữ lớn như \texttt{gpt-5-mini} có khả năng suy luận logic rất mạnh. Khi chỉ thu hồi được $70-80\%$ bằng chứng trực tiếp nhưng ngữ cảnh liền mạch (như ở Fixed-size), mô hình vẫn có thể tổng hợp thành công câu trả lời kỹ thuật chính xác.
+    \item \textbf{Ảnh hưởng của Distractor Chunks:} Để tối đa hóa số lượng bằng chứng thu hồi, Structure-aware phải đưa vào tới $14.64$ chunks, vô tình kéo theo các đoạn văn bản có độ tương đồng thấp hơn ở các thứ hạng sâu ($r > 10$). Những đoạn này hoạt động như các yếu tố gây nhiễu, làm giảm độ tập trung của cơ chế chú ý (attention mechanism) trong LLM.
+\end{enumerate}
+
+Tóm lại, kết quả thực nghiệm chỉ ra rằng việc tối ưu hóa độc lập ranh giới chunk ở tầng retrieval không thể tự động giải quyết bài toán chất lượng RAG; một chiến lược chunking tối ưu phải là sự dung hòa giữa độ phủ bằng chứng và tính liền mạch của cấu trúc ngữ cảnh nạp vào mô hình sinh.
+
+

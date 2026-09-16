@@ -2,78 +2,179 @@
 % 05_experimental_setup.tex
 % Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
 % ==============================================================================
-% TODO [Thành viên 2]:
-% - Điểm nối: Tiếp nhận 3 artifact từ Chương 4 (fixed_size_v1, structure_aware_v1, prompt_based_v1).
-% - Thiết kế thực nghiệm có kiểm soát: Chunking strategy là BIẾN DUY NHẤT thay đổi.
-% - Trình bày toàn bộ pipeline: Embedding -> Indexing -> Retrieval -> Chunk selection
-%   theo token budget -> Context construction -> Sinh câu trả lời -> Đánh giá.
-% - Cấu hình chính thức:
-%   * Embedding: text-embedding-3-small, Cosine Similarity.
-%   * Retrieval: Candidate pool k=50, Retrieval Budget 2.048 tokens.
-%   * Generation Context Budget: 4.096 tokens.
-%   * Generator: GPT-5 mini (temperature = 0, max_output_tokens = 1.024).
-% - Định nghĩa toán học các chỉ số:
-%   * Retrieval: Hit@K, MRR, Recall@K.
-%   * Evidence: Evidence Coverage, All-Evidence-Retrieved Rate.
-%   * Generation: Token Precision, Token Recall, Token F1.
-% ==============================================================================
 
-\section{Experimental Setup}
+\section{Thiết lập Thực nghiệm}
 \label{sec:experimental_setup}
 
-To isolate the causal impact of document segmentation, our experimental design enforces a strictly controlled evaluation setup in which the chunking strategy is the \textit{sole independent variable}.
+Để đánh giá chính xác và khách quan tác động của cấu trúc tài liệu lên hiệu năng của hệ thống RAG (Retrieval-Augmented Generation), chúng tôi thiết lập một khuôn khổ thực nghiệm có kiểm soát, hệ thống tiếp nhận ba tập chunk artifact chuẩn hóa từ giai đoạn tiền xử lý: \texttt{fixed\_size}, \texttt{structure\_aware} và \texttt{prompt\_based}. Phần này trình bày chi tiết về kiến trúc pipeline có kiểm soát, retrieval protocol với token budget, cấu hình mô hình generation, các evaluation metrics đa tầng và quy trình audit dữ liệu đảm bảo tính tái lập tuyệt đối.
 
-\subsection{Bridge from Upstream Artifacts and Pipeline Flow}
-As established in Section~\ref{sec:artifacts_bridge}, the upstream chunking phase yields three standardized candidate corpora: \texttt{fixed\_size\_v1.json}, \texttt{structure\_aware\_v1.json}, and \texttt{prompt\_based\_v1.json}. 
-These artifacts are fed into an identical downstream RAG pipeline comprising six sequential stages:
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/pipeline.png}
+    \caption{Kiến trúc Controlled Pipeline tổng thể: (1) Xử lý tài liệu và phân đoạn với ba chunking strategies; (2) Tạo embedding và vector index; (3) Xử lý 140 truy vấn, retrieval theo Cosine Similarity và lựa chọn kết quả theo token budget; (4) Xây dựng ngữ cảnh và sinh câu trả lời bằng GPT-5-mini ($\text{temperature} = 0$); (5) Đánh giá đa chiều retrieval metrics và answer quality.}
+    \label{fig:pipeline}
+\end{figure*}
+
+\subsection{Controlled Pipeline Architecture}
+\label{subsec:controlled_pipeline}
+
+Nguyên tắc cốt lõi của thiết kế thực nghiệm là \textit{single independent variable}: Chiến lược chunking (Fixed-size, Structure-aware, hoặc Prompt-based) là biến độc lập duy nhất được phép thay đổi. Tất cả các thành phần còn lại trong chu trình RAG đều được cố định $100\%$ và đóng băng tuyệt đối, bao gồm cùng một tập tài liệu nguồn (384 tài liệu kỹ thuật Markdown của Angular), cùng embedding model và vector index, cùng không gian biểu diễn vector, cùng retrieval protocol với token budget cố định, cùng context builder, cùng mô hình generator với tham số giải mã tất định, và cùng bộ metrics đánh giá tự động.
+
+Như được minh họa trực quan trong Figure~\ref{fig:pipeline}, toàn bộ pipeline có kiểm soát được tổ chức chặt chẽ thành 5 giai đoạn liên hoàn:
 \begin{enumerate}
-    \item \textbf{Embedding Generation:} Computing dense semantic representations for all indexed chunks and incoming benchmark queries.
-    \item \textbf{Dense Vector Indexing:} Storing chunk representations in an exact cosine similarity index.
-    \item \textbf{Candidate Retrieval:} Sifting an initial candidate pool of top-$k$ chunks ($k = 50$).
-    \item \textbf{Budget-Constrained Selection:} Accumulating candidate chunks in descending similarity order up to a strict \textbf{retrieval budget of 2,048 tokens}.
-    \item \textbf{Context Assembly:} Packing the retrieved chunks into a system prompt constrained to a maximum \textbf{context budget of 4,096 tokens}.
-    \item \textbf{Answer Generation \& Evaluation:} Synthesizing responses and scoring across retrieval, evidence, and answer metrics.
+    \item \textbf{Giai đoạn 1 -- Xử lý tài liệu:} Bắt đầu từ kho ngữ liệu gồm 384 tài liệu kỹ thuật Angular định dạng Markdown. Tài liệu được làm sạch và chuẩn hóa cấu trúc thông qua bước tiền xử lý, sau đó phân đoạn theo ba chiến lược chunking độc lập:
+    \begin{itemize}
+        \item \textit{Fixed-size:} Cửa sổ cố định 512 tokens với overlap 64 tokens.
+        \item \textit{Structure-aware:} Phân đoạn theo AST, tôn trọng ranh giới section và khối nguyên tử với kích thước tối đa 512 tokens.
+        \item \textit{Prompt-based:} Sử dụng LLM đề xuất ranh giới ngữ nghĩa và kiểm tra bất biến cục bộ.
+    \end{itemize}
+    Kết quả của cả ba nhánh được xuất xưởng thành các Unified Chunk Artifacts ở cùng một schema chuẩn hóa, lưu vết đầy đủ metadata và số lượng token (\texttt{token\_count}).
+
+    \item \textbf{Giai đoạn 2 -- Tạo chỉ mục (Indexing):} Toàn bộ các chunk được chuyển thành vector embedding thông qua mô hình \texttt{text-embedding-3-small} với không gian 1.536 chiều, sử dụng chung một cấu hình duy nhất cho tất cả các chiến lược. Các vector này sau đó được nạp vào chỉ mục vector cục bộ (\texttt{local\_cosine\_index}) với cơ chế giải quyết xung đột thứ hạng có tính tất định.
+
+    \item \textbf{Giai đoạn 3 -- Xử lý truy vấn \& Truy xuất (Retrieval):} Bộ câu hỏi gồm 140 câu hỏi benchmark được chuyển đổi thành query embedding bằng chính mô hình nhúng ở Giai đoạn 2. Bộ truy xuất tính toán Cosine Similarity để trích xuất 50 ứng viên tiềm năng ban đầu (Candidate Pool). Tiếp đó, cơ chế lựa chọn kết quả áp dụng thuật toán tích lũy tham lam để chọn lọc các chunk nguyên khối thỏa mãn trần token budget (2.048 tokens).
+
+    \item \textbf{Giai đoạn 4 -- Tạo câu trả lời (Generation):} Các chunk được lựa chọn nạp vào bước xây dựng ngữ cảnh (context assembly) theo quy trình chuẩn hóa cố định. Khối ngữ cảnh hoàn chỉnh được đưa vào prompt template cùng chỉ dẫn hệ thống nghiêm ngặt. Generator sử dụng mô hình \texttt{gpt-5-mini} với chế độ greedy decoding ($\text{temperature} = 0$) để sinh câu trả lời kỹ thuật có tính tất định cao.
+
+    \item \textbf{Giai đoạn 5 -- Đánh giá (Evaluation):} Đánh giá đa chiều và phân tích thống kê độc lập trên hai phương diện chính:
+    \begin{itemize}
+        \item \textit{Retrieval metrics:} Đánh giá khả năng xếp hạng và độ thu hồi bằng chứng (Hit@K, MRR, Recall@10, Evidence Coverage, AER).
+        \item \textit{Answer quality:} Đánh giá độ chuẩn xác từ vựng của câu trả lời sinh ra so với nhãn chuẩn của chuyên gia (Token Precision, Token Recall, Token F1).
+    \end{itemize}
 \end{enumerate}
 
-\subsection{Model Specifications and Hyperparameters}
-All experiments are executed under fixed model configurations:
+\subsection{Retrieval Protocol và Token Budget}
+\label{subsec:retrieval_protocol}
+
+Để loại bỏ các sai số hệ thống do sự chênh lệch về kích thước khối văn bản giữa các phương pháp chunking, retrieval protocol được thiết kế nhằm đảm bảo sự công bằng tuyệt đối về dung lượng thông tin nạp vào mô hình sinh.
+
+\paragraph{Embedding Model và Độ đo Tương đồng.}
+Hệ thống sử dụng mô hình nhúng \texttt{text-embedding-3-small} của OpenAI, biểu diễn văn bản dưới dạng các vector thực 1.536 chiều với định dạng số thực (\texttt{float}). Tokenizer chuẩn hóa là \texttt{cl100k\_base}, hỗ trợ ngữ cảnh đầu vào tối đa 8.192 tokens. Mỗi câu truy vấn trước hết được chuẩn hóa khoảng trắng tối thiểu (trim-only), sau đó nhúng thành vector truy vấn $\mathbf{q} \in \mathbb{R}^{1536}$. Độ tương đồng giữa vector truy vấn $\mathbf{q}$ và vector chunk $\mathbf{d}$ được xác định bằng Cosine Similarity:
+\begin{equation}
+\text{CosineSimilarity}(\mathbf{q}, \mathbf{d}) = \frac{\mathbf{q} \cdot \mathbf{d}}{\|\mathbf{q}\|_2 \|\mathbf{d}\|_2}
+\label{eq:cosine_similarity}
+\end{equation}
+
+Vector index được quản lý bởi backend \texttt{local\_cosine\_jsonl} (phiên bản schema \texttt{local\_cosine\_index}). Tie-breaking rule khi các chunk có cùng điểm số tương đồng được quy định chặt chẽ: ưu tiên điểm tương đồng giảm dần, trường hợp trùng điểm số sẽ đối chiếu thứ tự từ điển tăng dần của mã định danh chunk (\texttt{score DESC, chunk\_id ASC}).
+
+\paragraph{Candidate Pool.}
+Với mỗi câu truy vấn, bộ dense retrieval ban đầu trích xuất một candidate pool gồm $k = 50$ chunks ($\text{candidate\_k} = 50$) có Cosine Similarity cao nhất từ vector index.
+
+\paragraph{Giao thức Token Budget.}
+Thay vì cố định số lượng chunk trả về (Top-$K$)---vốn sẽ gây bất lợi bất công cho các phương pháp phân đoạn hạt mịn với kích thước khối nhỏ---chúng tôi áp dụng giao thức \texttt{same\_token\_budget}:
 \begin{itemize}
-    \item \textbf{Embedding Model:} OpenAI \texttt{text-embedding-3-small} ($d = 1{,}536$), computed with normalized embeddings under cosine similarity:
-    \begin{equation}
-        \text{sim}(q, c) = \frac{\mathbf{e}_q \cdot \mathbf{e}_c}{\|\mathbf{e}_q\|_2 \|\mathbf{e}_c\|_2}
-    \end{equation}
-    \item \textbf{Generator Model:} \texttt{gpt-5-mini} (temperature $\tau = 0.0$, top-$p = 1.0$, maximum generation limit of $1{,}024$ output tokens) with a fixed technical prompt template.
+    \item \textbf{Trần ngân sách cố định:} Giới hạn ngân sách truy xuất được ấn định nghiêm ngặt ở mức $B = 2.048$ tokens.
+    \item \textbf{Chính sách Tích lũy:} Áp dụng chính sách duyệt toàn khối và bỏ qua chunk quá khổ (\texttt{skip\_nonfitting}). Các ứng viên trong candidate pool gồm 50 chunks được duyệt tuần tự theo thứ tự điểm tương đồng giảm dần.
+    \item \textbf{Bảo toàn Whole Chunks:} Hệ thống cam kết không bao giờ cắt xén văn bản dở dang (no partial truncation). Toàn bộ nội dung của chunk được giữ trọn vẹn. Số lượng token chỉ được tính toán trên phần thân văn bản thực tế của chunk thông qua giá trị \texttt{token\_count} đã lưu vết bằng \texttt{tiktoken:cl100k\_base}, hoàn toàn không bao gồm metadata hay separator.
+    \item \textbf{Cơ chế Bỏ qua có Chọn lọc:} Nếu việc bổ sung chunk đang xét không vượt quá trần ngân sách ($T_{\text{tích\_lũy}} + \text{len}(c) \le B$), chunk đó sẽ được đưa vào danh sách lựa chọn và cập nhật ngân sách tích lũy. Ngược lại, nếu một chunk vượt quá dung lượng còn lại, hệ thống sẽ tạm thời bỏ qua (skip) chunk này và tiếp tục quét các ứng viên nhỏ hơn kế tiếp trong candidate pool cho đến khi tận dụng tối đa ngân sách 2.048 tokens hoặc duyệt hết tập ứng viên.
+    \item \textbf{Xử lý Biên Ngoại lệ:} Nếu ngay chính chunk xếp hạng đầu tiên ($r=1$) có kích thước vượt quá trần 2.048 tokens, nó sẽ được chấp nhận là phần tử đơn lẻ duy nhất và đánh dấu cờ cảnh báo vượt ngưỡng (\texttt{budget\_overflow = true}). Trong tập dữ liệu thực tế, kích thước tối đa của các chunk ở cả ba chiến lược đều không vượt quá 512 tokens, do đó trường hợp ngoại lệ này không bao giờ bị kích hoạt.
 \end{itemize}
 
-\subsection{Evaluation Metrics Definition}
-We evaluate the complete system across three complementary performance tiers:
+\subsection{Generation và Context Assembly}
+\label{subsec:generation_context}
 
-\paragraph{1. Retrieval Ranking Metrics:}
+Giai đoạn sinh câu trả lời được cô lập hoàn toàn khỏi tầng truy xuất để đảm bảo tính độc lập và khả năng thẩm định lỗi cục bộ.
+
+\paragraph{Context Assembly.}
+Các chunk vượt qua giao thức token budget (2.048 tokens) được chuyển giao sang bộ dựng ngữ cảnh (\texttt{AnswerPromptBuilder}). Ngân sách ngữ cảnh tối đa nạp vào prompt được quy định ở mức 4.096 tokens (\texttt{prepared\_context\_token\_budget = 4096}), nằm trong tổng context window 8.192 tokens của mô hình. Các chunk được ghép nối có cấu trúc theo prompt template chuẩn hóa (\texttt{answer\_prompt}), giữ nguyên các tiền tố ngữ cảnh phân cấp tiêu đề để cung cấp căn cứ suy luận vững chắc cho mô hình ngôn ngữ.
+
+\paragraph{Cấu hình Generator.}
+Mô hình sinh câu trả lời chính thức là \texttt{gpt-5-mini} (truy xuất qua định danh API chuẩn \texttt{openai/gpt-5-mini} trên nền tảng OpenRouter). Cấu hình chi tiết gồm các tham số sau:
 \begin{itemize}
-    \item \textbf{Hit@$K$ ($K \in \{1, 5, 10\}$):} Binary indicator whether at least one gold evidence span is contained within the top-$K$ candidate chunks.
-    \item \textbf{Mean Reciprocal Rank (MRR):} Evaluates the reciprocal rank of the first chunk containing relevant evidence:
-    \begin{equation}
-        \text{MRR} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{\text{rank}_i}
-    \end{equation}
-    \item \textbf{Recall@$K$ ($K \in \{5, 10\}$):} Proportion of total gold evidence spans retrieved in the top-$K$ chunks.
+    \item \textbf{Nhiệt độ Giải mã ($\text{Temperature} = 0.0$):} Sử dụng chiến lược greedy decoding tuyệt đối. Việc triệt tiêu tính ngẫu nhiên giúp loại trừ phương sai lấy mẫu giữa các lần chạy, bảo đảm tính xác định và độ tái lập 100\% cho mọi câu trả lời.
+    \item \textbf{Mức độ Suy luận (Reasoning Effort):} Đặt ở mức \texttt{low} nhằm duy trì phản hồi nhanh, trực diện và hạn chế việc suy diễn chuỗi tư duy lan man ngoài phạm vi ngữ cảnh.
+    \item \textbf{Giới hạn Token Đầu ra:} Thiết lập \texttt{max\_output\_tokens = 1024}, đủ rộng để chứa các câu trả lời kỹ thuật chi tiết kèm các đoạn mã nguồn minh họa nếu có.
+    \item \textbf{Integrity Policy:} Áp dụng chính sách \texttt{nonempty\_text\_require\_stop\_v2} với quy tắc bắt buộc \texttt{require\_stop}. Mọi câu trả lời hợp lệ phải chứa văn bản không rỗng và kết thúc bình thường với lý do \texttt{finish\_reason = stop}; mọi trường hợp ngắt do cạn token hoặc lỗi mạng đều bị từ chối và ghi vết lỗi.
 \end{itemize}
 
-\paragraph{2. Evidence Recovery Metrics:}
+\paragraph{Chiến lược Prompting.}
+Hệ thống áp dụng Zero-shot QA với system prompt nghiêm ngặt phiên bản \texttt{answer\_system}:
+Chiến lược này đặt ra yêu cầu tuyệt đối: mô hình chỉ được phép trả lời dựa trên những thông tin kỹ thuật được minh chứng trực tiếp trong các chunk được cung cấp, kiên quyết không ngoại suy hoặc bịa đặt dữ liệu (hallucination). Khi ngữ cảnh bị phân mảnh hoặc thiếu hụt bằng chứng, mô hình phải tuyên bố rõ ràng sự bất túc đó thay vì cố gắng tự tổng hợp từ tri thức tham số nội tại.
+
+\subsection{Evaluation Metrics}
+\label{subsec:evaluation_metrics}
+
+Để đánh giá toàn diện hiệu năng của hệ thống RAG từ pha truy xuất thông tin đến pha sinh ngôn ngữ, chúng tôi phân định rõ ràng ba nhóm chỉ số đo lường độc lập:
+
+\subsubsection{Retrieval và Ranking Metrics}
+Nhóm chỉ số này đo lường năng lực của bộ dense retrieval trong việc nhận diện và đẩy các nguồn tài liệu liên quan lên các vị trí xếp hạng đầu tiên trong danh sách ứng viên:
 \begin{itemize}
-    \item \textbf{Evidence Coverage (Cov):} The percentage of gold evidence spans (out of the 233 total benchmark items) that have an intersection-over-union ($\text{IoU} \ge 0.7$) with the retrieved context:
+    \item \textbf{Hit@$K$ ($K \in \{1, 3, 5, 10\}$):} Chỉ số nhị phân xác định xem có ít nhất một tài liệu nguồn liên quan thuộc tập chuẩn $\mathcal{D}^*_q$ xuất hiện trong Top-$K$ kết quả trả về của câu hỏi $q$ hay không:
     \begin{equation}
-        \text{Cov}(q) = \frac{1}{|E_q|} \sum_{e \in E_q} \mathbf{1}(\text{Overlap}(e, C_{\text{budget}}) \ge 0.7)
+    \text{Hit@}K = \mathbb{I}\left( \exists\, r \le K : d_r \in \mathcal{D}^*_q \right)
+    \label{eq:hit_k}
     \end{equation}
-    \item \textbf{All-Evidence-Retrieved Rate (AER):} The fraction of queries for which \textit{100\%} of the required gold evidence spans are present in the retrieved context:
+    trong đó $d_r$ là nguồn tài liệu ở thứ hạng $r$, và $\mathbb{I}(\cdot)$ là hàm chỉ thị.
+
+    \item \textbf{Mean Reciprocal Rank (MRR):} Đo lường độ nhạy của hệ thống đối với vị trí xuất hiện của tài liệu liên quan đầu tiên:
     \begin{equation}
-        \text{AER} = \frac{1}{|Q|} \sum_{q \in Q} \mathbf{1}\left(\text{Cov}(q) = 1.0\right)
+    \text{MRR} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{\text{rank}_i}
+    \label{eq:mrr}
+    \end{equation}
+    trong đó $\text{rank}_i = \min \{ r \mid d_r \in \mathcal{D}^*_{q_i} \}$ là thứ hạng của tài liệu liên quan đầu tiên được tìm thấy cho câu hỏi $q_i$. Nếu không có tài liệu liên quan nào xuất hiện trong danh sách ứng viên, ta gán $1/\text{rank}_i = 0$.
+
+    \item \textbf{Recall@10:} Tỷ lệ giữa số lượng tài liệu nguồn liên quan xuất hiện trong Top-10 so với tổng số tài liệu liên quan chuẩn của câu hỏi:
+    \begin{equation}
+    \text{Recall@}10 = \frac{|\{ d_r \mid r \le 10 \} \cap \mathcal{D}^*_q|}{|\mathcal{D}^*_q|}
+    \label{eq:recall_10}
     \end{equation}
 \end{itemize}
 
-\paragraph{3. Downstream Generation Metrics:}
+\subsubsection{Evidence Recovery Metrics}
+Trong các tác vụ hỏi đáp kỹ thuật, một câu hỏi có thể đòi hỏi nhiều bằng chứng độc lập nằm rải rác ở các phần khác nhau của tài liệu. Nhóm chỉ số này đánh giá khả năng của tập các chunk lọt vào token budget 2.048 tokens trong việc bảo toàn trọn vẹn 233 đơn vị bằng chứng chuẩn ($\mathcal{E}^*$):
 \begin{itemize}
-    \item \textbf{Token Precision (P), Recall (R), and F1:} Computed on normalized token bags between the generated answer $A_{\text{gen}}$ and the reference answer $A_{\text{gold}}$:
+    \item \textbf{Evidence Coverage:} Với mỗi đơn vị bằng chứng $e \in \mathcal{E}^*_q$ của câu hỏi $q$, hàm $\text{Cov}(e, \mathcal{C}_{\text{budget}}) \in [0, 1]$ biểu diễn tỷ lệ độ dài chuỗi ký tự của $e$ xuất hiện trọn vẹn trong tập các chunk được lựa chọn $\mathcal{C}_{\text{budget}}$. Chỉ số Evidence Coverage vĩ mô là trung bình tỷ lệ bao phủ của toàn bộ các đơn vị bằng chứng trên tập câu hỏi $Q$:
     \begin{equation}
-        \text{F1} = \frac{2 \cdot P \cdot R}{P + R}
+    \text{Coverage} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{|\mathcal{E}^*_{q_i}|} \sum_{e \in \mathcal{E}^*_{q_i}} \text{Cov}(e, \mathcal{C}_{\text{budget}})
+    \label{eq:evidence_coverage}
+    \end{equation}
+
+    \item \textbf{All-Evidence-Retrieved Rate (AER):} Thước đo nghiêm ngặt xác định tỷ lệ phần trăm các câu hỏi mà hệ thống thu hồi thành công 100\% toàn bộ các đơn vị bằng chứng bắt buộc mà không làm thất thoát bất kỳ thành phần nào:
+    \begin{equation}
+    \text{AER} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \prod_{e \in \mathcal{E}^*_{q_i}} \mathbb{I}\Big( \text{Cov}(e, \mathcal{C}_{\text{budget}}) = 1.0 \Big)
+    \label{eq:aer}
     \end{equation}
 \end{itemize}
+
+\subsubsection{Answer Generation Quality Metrics}
+Chất lượng câu trả lời sinh ra được đối chiếu với câu trả lời chuẩn mực của chuyên gia thông qua độ tương đồng từ vựng ở mức độ token:
+\begin{itemize}
+    \item \textbf{Tiền xử lý và Tách từ Chuẩn hóa:} Cả câu trả lời dự đoán ($\hat{A}$) và câu trả lời tham chiếu chuẩn ($A^*$) đều trải qua quy trình chuẩn hóa Unicode NFKC, chuyển chữ thường (casefolding) và chuẩn hóa khoảng trắng (\texttt{answer\_normalization}). Nhằm bảo toàn tính nguyên bản của cú pháp lập trình kỹ thuật (như tên phương thức, cú pháp lệnh hoặc tham số), các dấu câu được giữ nguyên, tuyệt đối không loại bỏ stopword hoặc áp dụng stemming/lemmatization. Văn bản sau đó được tách thành danh sách token thông qua biểu thức chính quy Unicode: \texttt{\textbackslash w+|[\textasciicircum\textbackslash w\textbackslash s]}.
+    \item \textbf{Multiset Overlap:} Gọi $\hat{\mathcal{T}}$ và $\mathcal{T}^*$ lần lượt là multiset các token của câu trả lời dự đoán và câu trả lời chuẩn. Số lượng token trùng khớp được tính toán có xét đến số lần lặp:
+    \begin{equation}
+    \text{Overlap}(\hat{\mathcal{T}}, \mathcal{T}^*) = \sum_{t} \min\Big( \text{count}_{\hat{\mathcal{T}}}(t), \, \text{count}_{\mathcal{T}^*}(t) \Big)
+    \label{eq:multiset_overlap}
+    \end{equation}
+    \item \textbf{Token Precision, Token Recall và Token F1:}
+    \begin{align}
+    \text{Token P} &= \frac{\text{Overlap}(\hat{\mathcal{T}}, \mathcal{T}^*)}{|\hat{\mathcal{T}}|} \label{eq:token_p} \\
+    \text{Token R} &= \frac{\text{Overlap}(\hat{\mathcal{T}}, \mathcal{T}^*)}{|\mathcal{T}^*|} \label{eq:token_r}
+    \end{align}
+    Chỉ số Token F1 là trung bình điều hòa của Precision và Recall:
+    \begin{equation}
+    \text{Token F1} = \frac{2 \cdot \text{Token P} \cdot \text{Token R}}{\text{Token P} + \text{Token R}}
+    \label{eq:token_f1}
+    \end{equation}
+    Điểm số cuối cùng của toàn hệ thống được tính bằng unweighted macro-average trên tất cả 140 câu hỏi trong tập benchmark.
+\end{itemize}
+
+\subsection{Reproducibility và Protocol Audit}
+\label{subsec:reproducibility_audit}
+
+Để đảm bảo tính minh bạch khoa học và khả năng tái lập độc lập của công trình, toàn bộ quy trình thực nghiệm được đóng băng và kiểm toán nghiêm ngặt theo các tiêu chuẩn giao thức sau:
+
+\paragraph{Benchmark Freeze Validation.}
+Bộ dữ liệu đánh giá chính thức gồm 140 cặp câu hỏi -- đáp án QA được cố định vĩnh viễn, phân bố đồng đều trên ba phân tầng độ khó: 60 câu Easy, 40 câu Medium và 40 câu Hard. Kèm theo đó là 233 đơn vị bằng chứng chuẩn (evidence items) được trích xuất trực tiếp từ các đoạn văn bản gốc. Tất cả các đơn vị bằng chứng này được thiết lập hoàn toàn độc lập với ranh giới phân đoạn của bất kỳ chiến lược chunking nào, ngăn ngừa triệt để hiện tượng thiên kiến dữ liệu (data leakage hoặc boundary tailoring).
+
+\paragraph{Cryptographic Artifact Fingerprints.}
+Nhằm bảo đảm tính toàn vẹn của chuỗi xuất xứ dữ liệu (provenance lineage), mọi cấu hình và tệp artifact trung gian trong toàn bộ pipeline đều được tính toán và neo giữ bằng mã băm SHA-256 định danh (canonical fingerprints):
+\begin{itemize}
+    \item \texttt{dataset\_fingerprint}: \texttt{9866799ea8f87c6a}\allowbreak\texttt{7c118cbaf0d8c298}\allowbreak\texttt{524757bd753db5d6}\allowbreak\texttt{40e1a32234206d74}.
+    \item \texttt{generation\_fingerprint}: \texttt{c4f4768ec9b80361}\allowbreak\texttt{dfd0a1e252f74ff3}\allowbreak\texttt{48aa4e4c953bcca0}\allowbreak\texttt{2761ba345f38b301}.
+    \item \texttt{evaluation\_fingerprint}: \texttt{c6867bffbd9775d3}\allowbreak\texttt{ef9b4ce666ae09f1}\allowbreak\texttt{995a6ccb7a7ef148}\allowbreak\texttt{58bbcdb736c1fa55}.
+    \item \texttt{retrieval\_benchmark\_fingerprint}: \texttt{9dab4015ca1ae4c4}\allowbreak\texttt{abda04ccc5809a5e}\allowbreak\texttt{030c793fcc7feff9}\allowbreak\texttt{32d04ecfb116a6b7}.
+    \item \texttt{answer\_benchmark\_fingerprint}: \texttt{375983ff4b3c4e84}\allowbreak\texttt{b303d7298c4dd93b}\allowbreak\texttt{44782430bbc1fd6d}\allowbreak\texttt{ff41db6f3b60af23}.
+\end{itemize}
+
+\paragraph{Deterministic Execution Audit.}
+Toàn bộ 420 lượt sinh câu trả lời ($140$ câu hỏi $\times$ $3$ chiến lược phân đoạn) đều đạt tỷ lệ hoàn thành hợp lệ 100\% với lý do kết thúc \texttt{finish\_reason = stop}, không phát sinh bất kỳ trường hợp nào bị cắt ngắn do thiếu hụt context window, lỗi mạng hay phản hồi rỗng. Nhờ việc cố định tham số nhiệt độ $\text{Temperature} = 0.0$, khóa phiên bản mô hình, chuẩn hóa bộ tách từ \texttt{tiktoken} và cố định tie-breaking rule, mọi thực nghiệm đều có khả năng tái lập tất định 100\% (deterministic reproduction), đảm bảo kết quả thu được phản ánh thuần túy bản chất của các chiến lược phân đoạn cấu trúc.

@@ -2,29 +2,23 @@
 % 08_limitations.tex
 % Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
 % ==============================================================================
-% TODO [Thành viên 2]:
-% - Rà soát và trình bày trung thực các giới hạn nghiên cứu:
-%   1. Miền tài liệu: Chỉ đánh giá trên tài liệu Angular bằng tiếng Anh (monolingual).
-%   2. Phạm vi benchmark: Đánh giá chi tiết bao phủ 55 trong tổng số 384 tài liệu Markdown.
-%   3. Hạn chế về ngân sách mô hình: Duy nhất 1 embedding model (text-embedding-3-small),
-%      1 generator model (gpt-5-mini), 1 ngân sách retrieval cố định (2.048 tokens).
-%   4. Đánh giá câu trả lời: Dựa trên token metrics tự động, chưa có semantic / human evaluation.
-%   5. Prompt-based sử dụng artifact lịch sử prompt_based_v1 với chi phí token cao.
-% ==============================================================================
 
-\section{Limitations}
+\section{Hạn chế của Nghiên cứu}
 \label{sec:limitations}
 
-We explicitly identify the operational and methodological boundaries of this study:
+Mặc dù quy trình thực nghiệm được thiết kế và kiểm toán nghiêm ngặt theo các tiêu chuẩn đóng băng dữ liệu (benchmark freeze), công trình này vẫn tồn tại một số giới hạn phương pháp luận cần được nhìn nhận một cách khách quan nhằm định hướng cho các nghiên cứu tiếp theo:
 
-\begin{itemize}
-    \item \textbf{Monolingual and Framework Specificity:} Our benchmark is grounded solely in English-language documentation for the Angular web framework. While Markdown structure is universal, languages with different typographic conventions and frameworks with different code-to-text ratios may exhibit distinct chunk boundary behaviors.
-    
-    \item \textbf{Benchmark Document Coverage:} Although the full corpus contains 384 Markdown files, our intensive 140-query benchmark is anchored across a core representative subset of 55 documents. Scaling full-evidence manual annotations to all 384 files represents an important direction for future dataset releases.
-    
-    \item \textbf{Model and Budget Invariance:} Experiments were conducted using a single embedding model (\texttt{text-embedding-3-small}), a single generator (\texttt{gpt-5-mini}), and fixed token budgets (2,048 retrieval, 4,096 context). Varying embedding architectures (e.g., late-interaction ColBERT, open-weight BGE/E5) or dynamic budget thresholds could impact sensitivity to chunk length.
-    
-    \item \textbf{Answer Evaluation Limitations:} Generation quality is evaluated through lexical token metrics (Precision, Recall, F1). Semantic equivalence, LLM-as-a-judge scoring, and human developer preference studies were not incorporated due to budget constraints.
-    
-    \item \textbf{Historical Prompt-Based Artifact:} The Prompt-based evaluation relied on the historical artifact \texttt{prompt\_based\_v1.json}. Iterative prompt engineering or fine-tuned chunking models may yield improved efficiency in future iterations.
-\end{itemize}
+\paragraph{Phạm vi dữ liệu và ngôn ngữ (Corpus \& Language Scope).}
+Toàn bộ thực nghiệm trong nghiên cứu này được tiến hành độc quyền trên kho tài liệu kỹ thuật của framework Angular bằng tiếng Anh, có cấu trúc cú pháp định dạng chuẩn Markdown. Do đó, các kết luận thực nghiệm không tự động suy diễn (generalize) cho các thể loại tài liệu phi cấu trúc khác (như văn bản tự do, tệp PDF đã qua xử lý OCR, báo cáo tài chính hay slide trình chiếu), cũng như các hệ thống tài liệu kỹ thuật đa ngôn ngữ. Cấu trúc phân cấp tiêu đề (heading hierarchy) và các khối cú pháp code block của Markdown có thể tạo ra những tương tác đặc thù với bộ phân tích cú pháp AST mà các định dạng tài liệu khác không sở hữu.
+
+\paragraph{Độ bao phủ của Benchmark (Benchmark Coverage).}
+Mặc dù kho ngữ liệu gốc bao gồm 384 tài liệu Markdown hoàn chỉnh, bộ benchmark đóng băng 140 cặp câu hỏi QA và 233 đơn vị gold evidence hiện tại mới chỉ khai thác và neo giữ bằng chứng trên 55 tài liệu nguồn được chọn lọc. Bên cạnh đó, dù 140 câu hỏi được phân bổ cân bằng trên 3 phân tầng độ khó chính (60 Easy, 40 Medium, 40 Hard), một số phân nhóm câu hỏi nhỏ theo dạng thức kỹ thuật sâu (question-type strata như cú pháp \texttt{syntax} với $n=1$, cơ chế bảo mật \texttt{security\_mechanism} với $n=1$, hay nguyên nhân--hệ quả \texttt{cause\_effect} với $n=2$) có kích thước mẫu quá nhỏ. Các kết quả trên những nhóm này thuần túy mang tính mô tả khám phá và chưa đủ lực thống kê để khái quát hóa thành kết luận độc lập.
+
+\paragraph{Cấu hình pipeline và ngân sách đơn lẻ (Single-Configuration Pipeline).}
+Nghiên cứu áp dụng thiết kế thực nghiệm kiểm soát nhằm cô lập tác động thuần túy của chunking strategy, do đó đã cố định một cấu hình duy nhất: một mô hình dense embedding (\texttt{text-embedding-3-small}), một mô hình sinh câu trả lời (\texttt{gpt-5-mini}), một độ sâu danh sách ứng viên ($k=50$), một ngưỡng retrieval token budget ($2.048$ tokens) và một mức context budget ($4.096$ tokens). Nghiên cứu chưa thực hiện kiểm thử lưới đa ngân sách (multi-budget grid search, ví dụ $1.024$ hay $4.096$ tokens), chưa tích hợp tầng tái xếp hạng học máy (cross-encoder reranker), và chưa khảo sát sự tương tác của các chiến lược phân đoạn với các kiến trúc mô hình ngôn ngữ lớn khác (như Claude, Gemini hay các mô hình open-weight như Llama).
+
+\paragraph{Phương pháp đánh giá câu trả lời (Answer Evaluation Scope).}
+Chất lượng câu trả lời sinh ra hiện được đo lường thông qua các chỉ số trùng khớp từ vựng cấp độ token (Token Precision, Token Recall, Token F1) đối chiếu với câu trả lời chuẩn tắc của chuyên gia sau khi chuẩn hóa Unicode NFKC. Dù phương pháp này đảm bảo tính tất định và khả năng tái lập độc lập 100\%, bản chất từ vựng của Token F1 có thể đánh giá chưa thỏa đáng các trường hợp mô hình diễn giải lại (paraphrase) câu trả lời bằng văn phong tự nhiên mà vẫn đảm bảo tính chính xác tuyệt đối về mặt kỹ thuật. Nghiên cứu chưa mở rộng sang việc áp dụng các khung đánh giá ngữ nghĩa đa chiều như LLM-as-a-judge có đối chứng hoặc human evaluation trên quy mô lớn.
+
+\paragraph{Giới hạn của Prompt-Based Chunking Artifact.}
+Chiến lược phân đoạn dựa trên prompt trong nghiên cứu này sử dụng dữ liệu được trích xuất từ artifact lịch sử cố định (\texttt{prompt\_based\_v1}) theo cam kết của phiên bản benchmark đóng băng v2. Nghiên cứu chưa khảo sát việc tối ưu hóa prompt động (dynamic prompt tuning), cung cấp ví dụ mẫu theo ngữ cảnh (few-shot in-context demonstrations) hay huấn luyện mô hình phân đoạn chuyên biệt (dedicated chunker fine-tuning). Do đó, kết quả của Prompt-based trong báo cáo phản ánh hiệu năng của artifact cụ thể này chứ không đại diện cho giới hạn tối đa của hướng tiếp cận prompt-based nói chung.

@@ -2,49 +2,93 @@
 % 07_discussion.tex
 % Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
 % ==============================================================================
-% TODO [Thành viên 2]:
-% - Giải thích cơ chế trade-off cốt lõi giữa 3 chiến lược:
-%   * Fixed-size: Tốt ở early ranking (Hit@1, MRR) nhờ chunk lớn và overlap 64 tokens,
-%     nhưng dễ làm đứt gãy code blocks và băm nhỏ context logic.
-%   * Structure-aware: Thu hồi evidence vượt trội (Evidence Coverage & AER) nhờ giữ ranh giới
-%     section và đưa được nhiều chunk hơn vào cùng retrieval budget 2.048 tokens.
-%   * Phân tích mặt trái: Context gồm nhiều chunk nhỏ làm tăng mức độ phân mảnh
-%     (fragmentation), đòi hỏi generator phải tổng hợp nhiều hơn, ảnh hưởng nhẹ tới Token F1.
-%   * Prompt-based: Token Recall cao nhưng chi phí suy luận lớn, chưa có lợi thế tổng thể.
-% - Đưa ra bảng khuyến nghị thực tiễn cho kỹ sư RAG tùy theo mục tiêu của hệ thống.
-% ==============================================================================
 
-\section{Discussion}
+\section{Thảo luận}
 \label{sec:discussion}
 
-Our empirical findings reveal fundamental trade-offs between chunk size, boundary integrity, and context synthesis in developer-facing RAG systems.
+Các phát hiện thực nghiệm được trình bày tại Mục~\ref{sec:results} đã bộc lộ những góc nhìn sâu sắc và có phần phi trực giác về vai trò của chunking strategy trong chu trình RAG. Trái với giả định phổ biến rằng các phương pháp phân đoạn bảo toàn cấu trúc hoặc ứng dụng mô hình ngôn ngữ lớn sẽ mang lại ưu thế áp đảo toàn diện, dữ liệu kiểm toán thực tế chứng minh sự tồn tại của các mối quan hệ trade-off phức tạp giữa tầng truy xuất và tầng sinh câu trả lời. Chương này mổ xẻ các cơ chế bản chất đằng sau các hiện tượng thực nghiệm và đề xuất các nguyên tắc định hình kiến trúc cho hệ thống RAG thực tế.
 
-\subsection{Deconstructing the Early Ranking Advantage of Fixed-Size Chunking}
-Fixed-size chunking consistently achieves superior Hit@1 ($0.671$) and MRR ($0.742$). 
-This advantage stems directly from chunk geometry:
+\subsection{Sự Đánh Đổi giữa Early Ranking và Evidence Recovery}
+\label{subsec:ranking_vs_evidence_tradeoff}
+
+Một trong những phát hiện nổi bật nhất của nghiên cứu là sự phân hóa rõ rệt giữa năng lực xếp hạng sớm (early ranking) và khả năng thu hồi bằng chứng chuẩn (evidence recovery) dưới cùng một retrieval token budget cố định (2.048 tokens).
+
+\paragraph{Mật độ ngữ nghĩa cục bộ và ưu thế của Fixed-size.}
+Chiến lược Fixed-size chiếm vị trí quán quân ở các chỉ số xếp hạng đầu với $\text{Hit@1} = 0.8071$ và $\text{MRR} = 0.8732$ (Bảng~\ref{tab:main_results}). Ưu thế này bắt nguồn trực tiếp từ cấu trúc vật lý của chunk:
 \begin{itemize}
-    \item \textbf{High Token Density and Overlap:} A 512-token window with 64-token overlap provides ample room for multiple query terms and adjacent explanatory sentences to co-occur within a single embedding vector.
-    \item \textbf{Single-Hop Query Alignment:} When a query targets an isolated fact (as in the 60 Easy queries), the entire required context frequently fits within a single fixed-size chunk, minimizing ranking ambiguity.
+    \item Với kích thước lớn (trung bình $447.1$ tokens, tập trung dày đặc ở ngưỡng trần 512 tokens) kết hợp cùng sliding-window overlap 64 tokens, chunk Fixed-size hình thành một vùng mật độ ngữ nghĩa cục bộ dày đặc (high local semantic density). Không gian này bảo tồn đồng thời nhiều thực thể, từ khóa và câu văn bổ trợ xung quanh.
+    \item Khi mô hình dense embedding (\texttt{text-embedding-3-small}) ánh xạ đoạn văn bản vào không gian vector, chunk lớn mang đầy đủ tín hiệu ngữ cảnh để khớp với câu hỏi độc lập của người dùng, giúp vector tương đồng Cosine đạt giá trị cực đại và đẩy chunk lên vị trí $r=1$ một cách vững chắc.
+    \item Tuy nhiên, cái giá phải trả của Fixed-size là sự dư thừa thông tin nghiêm trọng: toàn bộ kho ngữ liệu phát sinh tới $58.623$ token trùng lặp do trượt gối đầu ($11.22\%$ redundancy). Khi đưa vào bộ nạp context budget 2.048 tokens, các chunk cồng kềnh khiến thuật toán greedy accumulator chỉ có thể chọn trung bình $4.94$ chunks mỗi truy vấn (Bảng~\ref{tab:context_utilization}), vươn tới thứ hạng tối đa khiêm tốn là $13.47$ và lãng phí $31.4$ tokens chưa sử dụng. Hệ quả là Fixed-size bỏ sót nhiều đơn vị bằng chứng nằm phân tán, chỉ đạt Evidence Coverage $69.05\%$ và All-Evidence-Retrieved Rate (AER) $57.14\%$.
 \end{itemize}
 
-\subsection{Why Structure-Aware Chunking Excels at Evidence Recovery}
-Conversely, Structure-aware chunking achieves a $+14.9\%$ boost in Evidence Coverage ($86.3\%$) and an AER of $71.4\%$:
+\paragraph{Đóng gói tối ưu và sức mạnh thu hồi của Structure-aware.}
+Ngược lại hoàn toàn với Fixed-size, Structure-aware tuân thủ chặt chẽ ranh giới heading hierarchy của tài liệu Markdown và áp dụng chính sách non-coalescing sibling constraint. Chiến lược này tạo ra các khối văn bản hạt mịn (trung bình $165.1$ tokens) với $0\%$ trùng lặp nội dung:
 \begin{itemize}
-    \item \textbf{Packing Efficiency Under Token Budgets:} Because structure-aware chunks do not coalesce sibling sections, their average token footprint is more compact ($389$ vs.\ $436$ tokens) and non-overlapping. Consequently, under a strict retrieval budget of 2,048 tokens, the pipeline packs significantly more distinct, diverse semantic units into the candidate context.
-    \item \textbf{Syntactic Completeness:} Code listings, decorator definitions, and parameter tables remain unbroken, preserving complete functional evidence for complex procedural tasks.
+    \item Do diện tích bề mặt từ vựng của từng block nhỏ hơn, điểm Cosine similarity của một chunk Structure-aware đơn lẻ có thể thấp hơn khi so sánh với một khối văn bản đồ sộ 512 tokens, khiến Hit@1 dừng lại ở $0.7786$.
+    \item Tuy nhiên, khi vận hành dưới giới hạn retrieval token budget, kích thước hạt mịn giải phóng sức mạnh vượt trội cho thuật toán greedy accumulator: hệ thống có thể nhồi trung bình tới $14.64$ chunks độc lập vào context window mà vẫn tận dụng tới $99.57\%$ dung lượng ngân sách (lãng phí vỏn vẹn $8.7$ tokens).
+    \item Khả năng vươn sâu vào danh sách ứng viên (thứ hạng tối đa trung bình đạt $29.37$) cho phép Structure-aware thu gom triệt để các mảnh ghép bằng chứng nằm rải rác ở các section xa xôi, thiết lập kỷ lục $\text{Hit@10} = 1.0000$, $\text{Recall@10} = 0.9857$, $\text{Evidence Coverage} = 0.7476$ và $\text{AER} = 63.57\%$.
 \end{itemize}
+Như vậy, một sự đánh đổi kiến trúc cơ bản đã được xác lập: \textit{Fixed-size tối ưu hóa cho độ chuẩn xác của ứng viên đơn lẻ ở đỉnh danh mục ($r=1$), trong khi Structure-aware tối ưu hóa độ bao phủ thông tin đa chiều trên toàn bộ ngân sách ngữ cảnh.}
 
-\subsection{The Generator Synthesis Trade-off: Context Fragmentation}
-An unexpected finding is that despite higher evidence coverage, Structure-aware chunking achieves slightly lower Token F1 ($61.4$) than Fixed-size ($62.5$):
-\begin{itemize}
-    \item \textbf{Context Fragmentation:} Packing 6--8 smaller structure-aware chunks into the prompt presents the reader LLM with a discontinuous context stream separated by multiple header trails.
-    \item \textbf{Synthesis Cognitive Load:} The generator must perform cross-chunk reconciliation and resolve stitching artifacts, which slightly degrades word-level Token Precision ($58.4$ vs.\ $63.8$).
-\end{itemize}
+\subsection{Nghịch Lý Phân Mảnh Ngữ Cảnh và Gánh Nặng Tổng Hợp}
+\label{subsec:context_fragmentation_synthesis_burden}
 
-\subsection{Architectural Recommendations for Practitioners}
-Based on these trade-offs, we provide clear architectural guidelines:
+Mặc dù Structure-aware vượt trội ở mọi chỉ số thu hồi bằng chứng, kết quả downstream generation lại mang đến một nghịch lý rõ rệt: Fixed-size mới là chiến lược dẫn đầu về Token F1 tổng thể ($0.3830$ so với $0.3766$) và Token Precision ($0.2858$ so với $0.2798$). Hiện tượng này phơi bày hai rào cản kỹ thuật quan trọng ở giao diện giữa retrieval và generation: hiện tượng Context Fragmentation và gánh nặng tổng hợp (Synthesis Burden).
+
+\paragraph{Bản chất của hiện tượng Context Fragmentation.}
+Khi nạp trung bình $14.64$ chunks rời rạc từ Structure-aware vào prompt của downstream generator (\texttt{gpt-5-mini}), ngữ cảnh kỹ thuật bị xé nhỏ thành các mảnh vụn biệt lập (fragmented snippets). Quá trình này gây ra hai hệ lụy nghiêm trọng:
 \begin{enumerate}
-    \item \textbf{Choose Fixed-Size Chunking} if your application prioritizes quick, single-hop factual lookup where only the top-1 chunk is displayed directly to the user without heavy generation synthesis.
-    \item \textbf{Choose Structure-Aware Chunking} if your system handles complex multi-hop queries, code generation, or agentic workflows where missing a single evidence span leads to catastrophic code compilation errors.
-    \item \textbf{Prompt-Based Chunking} is currently not recommended for production offline indexing due to extreme API latency, recurring monetary cost, and lack of overall empirical superiority.
+    \item \textbf{Tiêu hao token phụ trợ (Overhead Cost):} Việc duy trì $14.64$ khối độc lập đòi hỏi bộ tiền xử lý phải chèn các nhãn phân đoạn \texttt{[CONTEXT n]} và dấu ngắt dòng liên tục, tiêu tốn trung bình $75.5$ tokens phụ trợ cho mỗi truy vấn (gấp gần 3 lần mức $27.1$ tokens của Fixed-size). Lượng token định dạng này chiếm dụng không gian lẽ ra có thể dùng để chứa nội dung tri thức hữu ích.
+    \item \textbf{Đứt gãy dòng chảy diễn ngôn (Discourse Discontinuity):} Tài liệu kỹ thuật đòi hỏi tính liền mạch cao độ giữa định nghĩa khái niệm, đoạn mã minh họa và các chú giải điều kiện biên. Khi bị phân rã theo cấu trúc heading, các câu văn dẫn dắt và mối quan hệ tiền đề--hệ quả bị cắt rời, làm mất đi tính toàn vẹn ngữ cảnh tự nhiên.
 \end{enumerate}
+
+\paragraph{Gánh nặng tổng hợp đặt lên Downstream Generator.}
+Ngữ cảnh phân mảnh đặt một áp lực tính toán rất lớn lên cơ chế chú ý (attention mechanism) của mô hình sinh. LLM buộc phải thực hiện thao tác giải quyết đồng tham chiếu (coreference resolution) phức tạp giữa các mảnh ghép không cùng dòng chảy, đồng thời phải tự chắp vá các mệnh đề logic bị gián đoạn. Hơn nữa, do Structure-aware vươn sâu tới thứ hạng $29.37$, xác suất đưa vào các đoạn văn bản ngoại lai (distractor chunks) gia tăng đáng kể, gây nhiễu loạn bộ nhớ ngữ cảnh của mô hình.
+
+Ngược lại, context của Fixed-size chỉ bao gồm $4.94$ khối văn bản lớn. Dù thu hồi ít bằng chứng thứ cấp hơn, các khối này bảo toàn nguyên vẹn dòng chảy văn bản, chứa đầy đủ các câu định nghĩa và thuật ngữ đi kèm. Nhờ đó, downstream generator dễ dàng nhận diện từ khóa then chốt, trích xuất nguyên văn thuật ngữ kỹ thuật và sinh ra câu trả lời cô đọng, đạt Token Precision cao hơn hẳn.
+
+\paragraph{Đặc thù từ vựng của độ đo Token F1.}
+Cần nhấn mạnh rằng Token F1 là một độ đo thuần túy dựa trên sự trùng khớp từ vựng (lexical overlap). Khi đối mặt với ngữ cảnh bị phân mảnh cao, mô hình ngôn ngữ lớn có xu hướng diễn giải lại (paraphrase) câu trả lời bằng văn phong tự nhiên thay vì sao chép nguyên văn câu chữ của tài liệu nguồn. Hành vi này khiến mô hình bị phạt điểm Token F1 dù nội dung hoàn toàn chuẩn xác về mặt ngữ nghĩa kỹ thuật. Đây chính là yếu tố giải thích tại sao mức tương quan Spearman giữa Evidence Coverage và Token F1 lại ở mức thấp ($\rho = 0.123 - 0.162$, Mục~\ref{subsec:correlation_analysis}).
+
+\subsection{Đánh Giá Tính Khả Thi của Prompt-Based Chunking}
+\label{subsec:prompt_based_viability}
+
+Phương pháp Prompt-based (sử dụng artifact đông băng \texttt{prompt\_based\_v1}) đại diện cho hướng tiếp cận hiện đại sử dụng chính mô hình ngôn ngữ lớn để nhận diện ranh giới ngữ nghĩa của văn bản. Mặc dù sở hữu những đặc tính lý thuyết hấp dẫn, phân tích thực nghiệm chứng minh rằng phương pháp này không đạt được vị thế tối ưu Pareto (Pareto optimality) trong bối cảnh ứng dụng thực tế.
+
+\paragraph{Hiệu năng downstream không tương xứng.}
+Trên phương diện chất lượng văn bản, Prompt-based đạt tỷ lệ bảo toàn bằng chứng đơn khối cao nhất ($99.6\%$ đơn vị gold evidence được chứa trọn trong duy nhất một chunk) và giúp downstream generator đạt Token Recall cao nhất ($0.7555$). Tuy nhiên, khả năng thu hồi từ vựng này không chuyển hóa thành thắng lợi ở điểm số tổng hợp: Token F1 của Prompt-based chỉ đạt $0.3721$ (thấp nhất trong ba phương pháp), trong khi Token Precision tụt dốc xuống $0.2707$ do câu trả lời có xu hướng dàn trải và thiếu tập trung. Ở tầng retrieval, các chỉ số của Prompt-based ($\text{Hit@1} = 0.7571$, $\text{MRR} = 0.8508$) đều nằm ở vị trí cuối cùng.
+
+\paragraph{Rào cản chi phí và độ phức tạp vận hành.}
+Về mặt kỹ thuật hệ thống, Prompt-based bộc lộ những hạn chế cố hữu:
+\begin{itemize}
+    \item \textbf{Chi phí suy luận và độ trễ tiền xử lý (Indexing Latency):} Để phân đoạn kho ngữ liệu 384 tài liệu Markdown, hệ thống phải thực hiện hàng trăm lượt gọi API đến LLM với chi phí tài chính đáng kể và rủi ro nghẽn giới hạn tần suất (rate limits). Độ trễ giai đoạn offline indexing tăng lên gấp nhiều lần so với các giải pháp chạy cục bộ.
+    \item \textbf{Độ bất tất định (Non-determinism):} Dù có kiểm soát prompt nghiêm ngặt, ranh giới phân đoạn của LLM vẫn tiềm ẩn sự trôi dạt ngữ nghĩa giữa các phiên bản mô hình, đòi hỏi các quy trình kiểm duyệt và xác thực artifact tốn kém.
+\end{itemize}
+Khi đặt cạnh Structure-aware---một giải pháp dựa trên bộ phân tích cú pháp AST cục bộ với chi phí suy luận bằng 0, tốc độ thực thi tính bằng mili-giây và khả năng tái lập tất định 100\%---việc triển khai Prompt-based cho giai đoạn chunking rõ ràng mang lại tỷ suất hoàn vốn kỹ thuật (return on engineering investment) rất thấp.
+
+\subsection{Khuyến Nghị Lựa Chọn Kiến Trúc cho Hệ Thống RAG}
+\label{subsec:architectural_recommendations}
+
+Từ những phân tích định lượng và cơ chế trade-off đã làm sáng tỏ, chúng tôi đề xuất các chỉ dẫn kỹ thuật cụ thể nhằm định hướng việc lựa chọn và thiết kế kiến trúc RAG trên tài liệu kỹ thuật:
+
+\paragraph{Trường hợp ưu tiên lựa chọn Fixed-size.}
+Chiến lược Fixed-size (với sliding-window overlap vừa phải) là sự lựa chọn tối ưu trong các kịch bản:
+\begin{enumerate}
+    \item \textbf{Hệ thống QA dạng Factoid và tra cứu định nghĩa:} Đối với các câu hỏi đơn giản (phân nhóm Easy tại Bảng~\ref{tab:difficulty_results} nơi Fixed-size đạt $\text{Token F1} = 0.3892$), câu trả lời thường tập trung trọn vẹn trong một đoạn văn bản duy nhất.
+    \item \textbf{Hệ thống đòi hỏi độ trễ cực thấp (Low Latency):} Nhờ số lượng chunk ít ($4.94$ blocks) và định dạng gọn gàng, độ dài prompt nạp vào LLM được tối giản, giúp tăng tốc độ sinh từ đầu tiên (Time-to-First-Token) và tiết kiệm chi phí token đầu vào.
+    \item \textbf{Ưu tiên độ chính xác tuyệt đối ở Top-1:} Các ứng dụng tra cứu nhanh nơi người dùng chỉ quan tâm đến đoạn trích dẫn đầu tiên hiển thị trên giao diện người dùng.
+\end{enumerate}
+
+\paragraph{Trường hợp bắt buộc lựa chọn Structure-aware.}
+Chiến lược Structure-aware là yêu cầu bắt buộc đối với các môi trường nghiệp vụ mang tính sống còn:
+\begin{enumerate}
+    \item \textbf{Hệ thống kiểm toán tuân thủ (Compliance Audit) và tài liệu API:} Trong các bài toán kỹ thuật phức tạp đòi hỏi phải thu thập đầy đủ mọi điều kiện tiên quyết và cảnh báo an toàn rải rác qua nhiều module, chỉ số All-Evidence-Retrieved Rate ($63.57\%$) của Structure-aware là yếu tố quyết định để ngăn chặn việc đưa ra hướng dẫn sai lệch.
+    \item \textbf{Hệ thống có ràng buộc chặt về ngân sách token:} Khi tài nguyên context budget bị bóp nghẹt, khả năng khai thác tới $99.57\%$ dung lượng ngân sách của Structure-aware giúp tối đa hóa mật độ thông tin nạp vào bộ xử lý.
+\end{enumerate}
+
+\paragraph{Định hướng kiến trúc lai trong tương lai (Hybrid Outlook).}
+Để giải quyết triệt để sự mâu thuẫn giữa độ bao phủ bằng chứng của Structure-aware và tính liền mạch ngữ cảnh của Fixed-size, chúng tôi khuyến nghị hai hướng cải tiến kiến trúc:
+\begin{itemize}
+    \item \textbf{Parent-Document Retrieval (Hierarchical Indexing):} Sử dụng các đơn vị AST nhỏ của Structure-aware làm vector khóa để tìm kiếm ở tầng retrieval nhằm tối đa hóa độ nhạy khớp lệnh, nhưng khi nạp vào context cho downstream generator thì tự động mở rộng và truy hồi toàn bộ section cha (parent section) tương ứng.
+    \item \textbf{Hợp nhất Chunk động (Dynamic Chunk Merging):} Thiết lập cơ chế hậu xử lý context sau khi retrieval: nếu hai hoặc nhiều chunk liên tiếp được chọn thuộc về cùng một văn bản nguồn hoặc cùng một nhánh tiêu đề đồng cấp, hệ thống sẽ tự động gộp chúng thành một khối duy nhất trước khi đánh số nhãn \texttt{[CONTEXT n]}. Cơ chế này sẽ loại bỏ hoàn toàn hiện tượng Context Fragmentation, cắt giảm triệt để overhead token và giảm thiểu gánh nặng tổng hợp cho mô hình ngôn ngữ lớn.
+\end{itemize}
