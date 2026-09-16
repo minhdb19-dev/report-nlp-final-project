@@ -1,0 +1,61 @@
+% ==============================================================================
+% 03_dataset.tex
+% Phụ trách: Thành viên 1 (Cơ sở nghiên cứu, phương pháp và dữ liệu)
+% ==============================================================================
+% TODO [Thành viên 1]:
+% - Mô tả corpus 384 tài liệu Angular Markdown, cấu trúc tài liệu và tiền xử lý.
+% - Quá trình dùng ChatGPT hỗ trợ tạo QA ban đầu.
+% - Quá trình 3 kỹ sư phần mềm review tuần tự (sequential expert review).
+% - Cấu trúc mỗi QA record & NGUYÊN TẮC QUAN TRỌNG: không gắn ground truth với chunk ID
+%   (để đảm bảo tính trung lập khi đánh giá các chiến lược chunking khác nhau).
+% - Bảng thống kê chi tiết: 140 câu hỏi, 233 evidence items, 60 easy, 40 medium, 40 hard.
+% - Phân bố phạm vi: single-section, cross-section, cross-document.
+% - Giải thích tiêu chí thiết kế độ khó và các nhóm câu hỏi trong benchmark.
+% ==============================================================================
+
+\section{Benchmark Dataset Construction}
+\label{sec:dataset}
+
+To evaluate chunking strategies on realistic technical software corpora, we construct a dedicated evaluation benchmark based on the official Angular documentation \citep{angular2024docs}.
+
+\subsection{Corpus and Preprocessing}
+The source corpus consists of 384 Markdown documents extracted from the official Angular core documentation repository. 
+Each document exhibits authentic developer-facing structural patterns:
+\begin{itemize}
+    \item \textbf{Syntactic Components:} Markdown headers (\texttt{\#}, \texttt{\#\#}, \texttt{\#\#\#}, \texttt{\#\#\#\#}), YAML frontmatter metadata, TypeScript/HTML fenced code listings, bulleted itemizations, and custom callout blocks (\texttt{NOTE}, \texttt{HELPFUL}, \texttt{CRITICAL}).
+    \item \textbf{Preprocessing Pipeline:} Frontmatter metadata is normalized into structured attributes. Embedded raw HTML tags are sanitized, while relative asset links are canonicalized. Document heading trees are parsed into hierarchical symbol paths.
+\end{itemize}
+
+\subsection{Benchmark Construction and Expert Review}
+We followed a rigorous human-in-the-loop curation workflow:
+\begin{enumerate}
+    \item \textbf{LLM-Assisted Generation:} Candidate question-answer pairs and candidate evidence spans were drafted by querying ChatGPT (\texttt{gpt-4o}) with source document sections.
+    \item \textbf{Sequential Expert Review:} Three professional software engineers specializing in Angular and web architecture reviewed each candidate record sequentially. Reviewers verified API accuracy, verified evidence boundaries, and refined question phrasing to reflect authentic developer search intents.
+    \item \textbf{Decoupled Ground Truth Principle:} A core methodological design requirement was that \textit{ground-truth evidence spans must never be tied to specific chunk IDs}. Instead, evidence is recorded as raw character offsets, section headings, and exact text spans within the source document. This ensures absolute neutrality when evaluating arbitrary chunking strategies.
+\end{enumerate}
+
+\subsection{Dataset Statistics and Difficulty Stratification}
+The finalized benchmark comprises 140 QA records grounded in 233 distinct evidence items. We stratify queries into three difficulty levels based on structural scope:
+\begin{itemize}
+    \item \textbf{Easy (60 queries):} Single-section retrieval. The required evidence resides entirely within a single localized subsection or code block.
+    \item \textbf{Medium (40 queries):} Cross-section retrieval. Answering the query requires synthesizing evidence from two or more distinct sections within the same document.
+    \item \textbf{Hard (40 queries):} Cross-document retrieval. Grounding requires identifying and aggregating evidence spans distributed across distinct documentation files.
+\end{itemize}
+
+\begin{table}[t]
+    \centering
+    \small
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{Scope / Difficulty} & \textbf{Queries} & \textbf{Evidence Items} & \textbf{Mean Ev./Query} \\
+        \midrule
+        Easy (Single-Section)    & 60  & 82  & 1.37 \\
+        Medium (Cross-Section)  & 40  & 76  & 1.90 \\
+        Hard (Cross-Document)   & 40  & 75  & 1.88 \\
+        \midrule
+        \textbf{Total Benchmark} & \textbf{140} & \textbf{233} & \textbf{1.66} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Stratified statistics of the Angular documentation benchmark across difficulty tiers and structural scopes.}
+    \label{tab:dataset_statistics}
+\end{table}

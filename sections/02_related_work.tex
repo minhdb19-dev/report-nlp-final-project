@@ -1,0 +1,46 @@
+% ==============================================================================
+% 02_related_work.tex
+% Phụ trách: Thành viên 1 (Cơ sở nghiên cứu, phương pháp và dữ liệu)
+% ==============================================================================
+% TODO [Thành viên 1]:
+% - Phân loại chi tiết 5 nhóm phương pháp chunking:
+%   1. Fixed-size chunking (token / character window).
+%   2. Sentence / paragraph-based chunking.
+%   3. Semantic chunking (dựa trên embedding similarity giữa các câu).
+%   4. Structure-aware chunking (dựa trên AST, heading hierarchy, syntax blocks).
+%   5. LLM-assisted / prompt-based chunking.
+% - Tổng hợp các hướng đánh giá RAG ở 3 cấp độ:
+%   * Cấp retrieval (Hit@K, MRR, Recall@K).
+%   * Cấp evidence (Evidence Coverage, All-Evidence-Retrieved Rate).
+%   * Cấp câu trả lời (Token F1, BLEU/ROUGE, human eval).
+% - Xác định rõ khoảng trống nghiên cứu (research gap) mà đề tài hướng đến.
+% ==============================================================================
+
+\section{Related Work}
+\label{sec:related_work}
+
+Document segmentation and retrieval grounding constitute critical bottlenecks in modern Retrieval-Augmented Generation. We synthesize existing literature across chunking taxonomies, RAG evaluation methodologies, and research gaps.
+
+\subsection{Taxonomy of Chunking Methodologies}
+Existing approaches to document partitioning can be broadly categorized into five primary paradigms:
+\begin{enumerate}
+    \item \textbf{Fixed-Size Chunking:} Traditional sliding window techniques partition raw text into fixed token or character lengths with a static overlap stride \citep{karpukhin2020dense, lewis2020retrieval}. While computationally optimal, they ignore syntactic boundaries.
+    \item \textbf{Sentence and Paragraph-Based Chunking:} Utilizes rule-based tokenizers or regular expressions to break documents at punctuation marks or double newline delimiters, ensuring that natural language sentences remain intact but disregarding multi-level heading hierarchies and indented code blocks.
+    \item \textbf{Semantic Chunking:} Evaluates vector distance between consecutive sentences or sliding groups using embedding models. Splits are created where cosine similarity dips below an adaptive threshold. However, semantic similarity calculations are expensive and become noisy when parsing technical code listings.
+    \item \textbf{Structure-Aware Chunking:} Exploits document syntax representations (such as HTML DOM trees, ASTs, or Markdown headers) to partition content along author-defined logical boundaries \citep{cast2023ast, hichunk2024}. Breadcrumb paths are maintained to retain contextual lineage.
+    \item \textbf{LLM-Assisted Chunking:} Employs instruction-tuned LLMs to identify semantic transition points or summarize self-contained sections. While highly adaptive, it introduces substantial inference latency, token cost, and non-deterministic formatting.
+\end{enumerate}
+
+\subsection{Multi-Tiered RAG Evaluation Frameworks}
+Evaluating RAG systems requires assessing performance across three distinct operational layers:
+\begin{itemize}
+    \item \textbf{Retrieval-Level Evaluation:} Focuses purely on the ranking position of relevant documents using information retrieval metrics such as Hit@$K$, Mean Reciprocal Rank (MRR), and Recall@$K$ \citep{karpukhin2020dense}.
+    \item \textbf{Evidence-Level Evaluation:} Measures whether the specific ground-truth evidence spans necessary to answer the query are fully contained within the assembled context window, as formalized in benchmarks like QASPER \citep{dasigi2021qasper} and HiCBench \citep{hicbench2024}.
+    \item \textbf{Answer-Level Evaluation:} Assesses the final synthesized response using lexical metrics (Token Precision, Token Recall, Token F1), n-gram overlap (ROUGE-L), or LLM-as-a-judge evaluation.
+\end{itemize}
+
+\subsection{Identified Research Gap}
+While prior benchmarks examine academic papers \citep{dasigi2021qasper} or generic web pages, systematic empirical investigations into technical Markdown documentation remain sparse. 
+Critically, existing studies often conflate chunking strategies with specific retrieval algorithms or vary chunk budgets inconsistently. 
+Furthermore, few works jointly evaluate the interplay between retrieval ranking, multi-span evidence recovery, and downstream answer fidelity under identical token budgets. 
+Our study directly addresses this research gap by providing a controlled, multi-tier evaluation on an authentic software engineering documentation corpus.

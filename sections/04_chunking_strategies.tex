@@ -1,0 +1,74 @@
+% ==============================================================================
+% 04_chunking_strategies.tex
+% Phụ trách: Thành viên 1 (Cơ sở nghiên cứu, phương pháp và dữ liệu)
+% ==============================================================================
+% TODO [Thành viên 1]:
+% - Mô tả đầy đủ 3 phương pháp chunking:
+%   1. Fixed-size: Cửa sổ 512 token, overlap 64 token.
+%   2. Structure-aware: Sử dụng heading hierarchy, không gộp sibling sections,
+%      chia nội dung theo đơn vị phù hợp với từng block.
+%   3. Prompt-based: Sử dụng LLM đề xuất ranh giới block, sau đó local code
+%      kiểm tra coverage, order, provenance và giới hạn token (artifact prompt_based_v1).
+% - Bảng so sánh 3 phương pháp (Chunk count, Mean size, Overlap, Structure retention).
+% - ĐIỂM NỐI SANG PHẦN 2: Mô tả các artifact được tạo ra (fixed_size_v1, structure_aware_v1,
+%   prompt_based_v1) làm đầu vào chuyển giao trực tiếp cho pipeline của Thành viên 2.
+% ==============================================================================
+
+\section{Chunking Strategies}
+\label{sec:chunking_strategies}
+
+We implement and evaluate three distinct document chunking strategies representing baseline token-counting, deterministic AST parsing, and hybrid LLM-guided segmentation.
+
+\subsection{Fixed-Size Chunking (Baseline)}
+The fixed-size strategy represents the industry standard:
+\begin{itemize}
+    \item \textbf{Token Window:} Uses a uniform sliding window of 512 tokens with a static 64-token overlap stride ($12.5\%$ overlap ratio) using the \texttt{cl100k\_base} tokenizer.
+    \item \textbf{Syntactic Obliviousness:} Chunks are formed purely by token counts without inspecting Markdown delimiters, frequently bisecting code blocks, bullet lists, or inline callout admonitions.
+\end{itemize}
+
+\subsection{Structure-Aware Chunking (AST-Based)}
+Our structure-aware chunking strategy leverages an Abstract Syntax Tree (AST) parser to strictly honor document syntax:
+\begin{itemize}
+    \item \textbf{Heading Hierarchy:} Each chunk maintains its ancestral heading path as an embedded metadata prefix (e.g., \texttt{\# Router > \#\# Guards > \#\#\# CanMatch}).
+    \item \textbf{Non-Coalescing Sibling Constraint:} Sibling sections at the same hierarchy level are never coalesced into a single chunk, even if their combined token count falls below 512 tokens, preserving strict thematic isolation.
+    \item \textbf{Atomic Block Preservation:} Fenced code listings, tables, and callouts are treated as indivisible blocks. Content is partitioned strictly along natural block boundaries.
+\end{itemize}
+
+\subsection{Prompt-Based Chunking (LLM with Local Verification)}
+The prompt-based chunking strategy utilizes an LLM to propose semantic block boundaries, backed by deterministic local validation:
+\begin{itemize}
+    \item \textbf{LLM Boundary Proposal:} An instruction-tuned LLM receives Markdown documents and outputs proposed semantic segment boundaries.
+    \item \textbf{Local Code Invariant Checks:} To guarantee reliability, a local post-processing verification engine enforces four strict invariants:
+    \begin{enumerate}
+        \item \textit{Coverage:} Every character of the source text must appear in exactly one chunk (no omitted text).
+        \item \textit{Order:} Chunk sequence must strictly match the original document flow.
+        \item \textit{Provenance:} Chunks must contain verbatim source text without hallucinated or rephrased content.
+        \item \textit{Token Bounds:} Chunks exceeding maximum token limits are recursively subdivided along AST boundaries.
+    \end{enumerate}
+\end{itemize}
+
+\begin{table*}[t]
+    \centering
+    \small
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{Chunking Strategy} & \textbf{Total Chunks} & \textbf{Mean Size (Tokens)} & \textbf{Overlap (Tokens)} & \textbf{Structure Utilization} \\
+        \midrule
+        Fixed-Size (512 / 64)       & 1,482 & $436 \pm 78$  & 64 (Fixed)    & None (Flat token stream) \\
+        Structure-Aware (AST)      & 1,210 & $389 \pm 112$ & 0 (Natural)   & High (Header trails \& atomic blocks) \\
+        Prompt-Based (\texttt{v1})  & 1,145 & $415 \pm 95$  & Variable      & High (LLM boundaries + local checks) \\
+        \bottomrule
+    \end{tabular}
+    \caption{Structural and statistical comparison across the three chunking strategies over the evaluated corpus.}
+    \label{tab:chunking_comparison}
+\end{table*}
+
+\subsection{Bridge to Experimental Pipeline: Generated Artifacts}
+\label{sec:artifacts_bridge}
+The three chunking strategies produce standardized, self-contained JSON artifact files:
+\begin{itemize}
+    \item \texttt{fixed\_size\_v1.json}: Index of uniform 512-token chunks with fixed stride.
+    \item \texttt{structure\_aware\_v1.json}: Index of AST-delimited chunks containing full breadcrumb metadata.
+    \item \texttt{prompt\_based\_v1.json}: Historical artifact containing LLM-proposed and locally verified semantic chunks.
+\end{itemize}
+These standardized artifacts serve as the unified input interface for the subsequent experimental pipeline detailed in Chapter~\ref{sec:experimental_setup}.

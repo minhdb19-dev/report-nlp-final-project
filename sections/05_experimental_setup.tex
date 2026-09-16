@@ -1,0 +1,79 @@
+% ==============================================================================
+% 05_experimental_setup.tex
+% Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
+% ==============================================================================
+% TODO [Thành viên 2]:
+% - Điểm nối: Tiếp nhận 3 artifact từ Chương 4 (fixed_size_v1, structure_aware_v1, prompt_based_v1).
+% - Thiết kế thực nghiệm có kiểm soát: Chunking strategy là BIẾN DUY NHẤT thay đổi.
+% - Trình bày toàn bộ pipeline: Embedding -> Indexing -> Retrieval -> Chunk selection
+%   theo token budget -> Context construction -> Sinh câu trả lời -> Đánh giá.
+% - Cấu hình chính thức:
+%   * Embedding: text-embedding-3-small, Cosine Similarity.
+%   * Retrieval: Candidate pool k=50, Retrieval Budget 2.048 tokens.
+%   * Generation Context Budget: 4.096 tokens.
+%   * Generator: GPT-5 mini (temperature = 0, max_output_tokens = 1.024).
+% - Định nghĩa toán học các chỉ số:
+%   * Retrieval: Hit@K, MRR, Recall@K.
+%   * Evidence: Evidence Coverage, All-Evidence-Retrieved Rate.
+%   * Generation: Token Precision, Token Recall, Token F1.
+% ==============================================================================
+
+\section{Experimental Setup}
+\label{sec:experimental_setup}
+
+To isolate the causal impact of document segmentation, our experimental design enforces a strictly controlled evaluation setup in which the chunking strategy is the \textit{sole independent variable}.
+
+\subsection{Bridge from Upstream Artifacts and Pipeline Flow}
+As established in Section~\ref{sec:artifacts_bridge}, the upstream chunking phase yields three standardized candidate corpora: \texttt{fixed\_size\_v1.json}, \texttt{structure\_aware\_v1.json}, and \texttt{prompt\_based\_v1.json}. 
+These artifacts are fed into an identical downstream RAG pipeline comprising six sequential stages:
+\begin{enumerate}
+    \item \textbf{Embedding Generation:} Computing dense semantic representations for all indexed chunks and incoming benchmark queries.
+    \item \textbf{Dense Vector Indexing:} Storing chunk representations in an exact cosine similarity index.
+    \item \textbf{Candidate Retrieval:} Sifting an initial candidate pool of top-$k$ chunks ($k = 50$).
+    \item \textbf{Budget-Constrained Selection:} Accumulating candidate chunks in descending similarity order up to a strict \textbf{retrieval budget of 2,048 tokens}.
+    \item \textbf{Context Assembly:} Packing the retrieved chunks into a system prompt constrained to a maximum \textbf{context budget of 4,096 tokens}.
+    \item \textbf{Answer Generation \& Evaluation:} Synthesizing responses and scoring across retrieval, evidence, and answer metrics.
+\end{enumerate}
+
+\subsection{Model Specifications and Hyperparameters}
+All experiments are executed under fixed model configurations:
+\begin{itemize}
+    \item \textbf{Embedding Model:} OpenAI \texttt{text-embedding-3-small} ($d = 1{,}536$), computed with normalized embeddings under cosine similarity:
+    \begin{equation}
+        \text{sim}(q, c) = \frac{\mathbf{e}_q \cdot \mathbf{e}_c}{\|\mathbf{e}_q\|_2 \|\mathbf{e}_c\|_2}
+    \end{equation}
+    \item \textbf{Generator Model:} \texttt{gpt-5-mini} (temperature $\tau = 0.0$, top-$p = 1.0$, maximum generation limit of $1{,}024$ output tokens) with a fixed technical prompt template.
+\end{itemize}
+
+\subsection{Evaluation Metrics Definition}
+We evaluate the complete system across three complementary performance tiers:
+
+\paragraph{1. Retrieval Ranking Metrics:}
+\begin{itemize}
+    \item \textbf{Hit@$K$ ($K \in \{1, 5, 10\}$):} Binary indicator whether at least one gold evidence span is contained within the top-$K$ candidate chunks.
+    \item \textbf{Mean Reciprocal Rank (MRR):} Evaluates the reciprocal rank of the first chunk containing relevant evidence:
+    \begin{equation}
+        \text{MRR} = \frac{1}{|Q|} \sum_{i=1}^{|Q|} \frac{1}{\text{rank}_i}
+    \end{equation}
+    \item \textbf{Recall@$K$ ($K \in \{5, 10\}$):} Proportion of total gold evidence spans retrieved in the top-$K$ chunks.
+\end{itemize}
+
+\paragraph{2. Evidence Recovery Metrics:}
+\begin{itemize}
+    \item \textbf{Evidence Coverage (Cov):} The percentage of gold evidence spans (out of the 233 total benchmark items) that have an intersection-over-union ($\text{IoU} \ge 0.7$) with the retrieved context:
+    \begin{equation}
+        \text{Cov}(q) = \frac{1}{|E_q|} \sum_{e \in E_q} \mathbf{1}(\text{Overlap}(e, C_{\text{budget}}) \ge 0.7)
+    \end{equation}
+    \item \textbf{All-Evidence-Retrieved Rate (AER):} The fraction of queries for which \textit{100\%} of the required gold evidence spans are present in the retrieved context:
+    \begin{equation}
+        \text{AER} = \frac{1}{|Q|} \sum_{q \in Q} \mathbf{1}\left(\text{Cov}(q) = 1.0\right)
+    \end{equation}
+\end{itemize}
+
+\paragraph{3. Downstream Generation Metrics:}
+\begin{itemize}
+    \item \textbf{Token Precision (P), Recall (R), and F1:} Computed on normalized token bags between the generated answer $A_{\text{gen}}$ and the reference answer $A_{\text{gold}}$:
+    \begin{equation}
+        \text{F1} = \frac{2 \cdot P \cdot R}{P + R}
+    \end{equation}
+\end{itemize}

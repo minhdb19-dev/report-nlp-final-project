@@ -1,0 +1,50 @@
+% ==============================================================================
+% 07_discussion.tex
+% Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
+% ==============================================================================
+% TODO [Thành viên 2]:
+% - Giải thích cơ chế trade-off cốt lõi giữa 3 chiến lược:
+%   * Fixed-size: Tốt ở early ranking (Hit@1, MRR) nhờ chunk lớn và overlap 64 tokens,
+%     nhưng dễ làm đứt gãy code blocks và băm nhỏ context logic.
+%   * Structure-aware: Thu hồi evidence vượt trội (Evidence Coverage & AER) nhờ giữ ranh giới
+%     section và đưa được nhiều chunk hơn vào cùng retrieval budget 2.048 tokens.
+%   * Phân tích mặt trái: Context gồm nhiều chunk nhỏ làm tăng mức độ phân mảnh
+%     (fragmentation), đòi hỏi generator phải tổng hợp nhiều hơn, ảnh hưởng nhẹ tới Token F1.
+%   * Prompt-based: Token Recall cao nhưng chi phí suy luận lớn, chưa có lợi thế tổng thể.
+% - Đưa ra bảng khuyến nghị thực tiễn cho kỹ sư RAG tùy theo mục tiêu của hệ thống.
+% ==============================================================================
+
+\section{Discussion}
+\label{sec:discussion}
+
+Our empirical findings reveal fundamental trade-offs between chunk size, boundary integrity, and context synthesis in developer-facing RAG systems.
+
+\subsection{Deconstructing the Early Ranking Advantage of Fixed-Size Chunking}
+Fixed-size chunking consistently achieves superior Hit@1 ($0.671$) and MRR ($0.742$). 
+This advantage stems directly from chunk geometry:
+\begin{itemize}
+    \item \textbf{High Token Density and Overlap:} A 512-token window with 64-token overlap provides ample room for multiple query terms and adjacent explanatory sentences to co-occur within a single embedding vector.
+    \item \textbf{Single-Hop Query Alignment:} When a query targets an isolated fact (as in the 60 Easy queries), the entire required context frequently fits within a single fixed-size chunk, minimizing ranking ambiguity.
+\end{itemize}
+
+\subsection{Why Structure-Aware Chunking Excels at Evidence Recovery}
+Conversely, Structure-aware chunking achieves a $+14.9\%$ boost in Evidence Coverage ($86.3\%$) and an AER of $71.4\%$:
+\begin{itemize}
+    \item \textbf{Packing Efficiency Under Token Budgets:} Because structure-aware chunks do not coalesce sibling sections, their average token footprint is more compact ($389$ vs.\ $436$ tokens) and non-overlapping. Consequently, under a strict retrieval budget of 2,048 tokens, the pipeline packs significantly more distinct, diverse semantic units into the candidate context.
+    \item \textbf{Syntactic Completeness:} Code listings, decorator definitions, and parameter tables remain unbroken, preserving complete functional evidence for complex procedural tasks.
+\end{itemize}
+
+\subsection{The Generator Synthesis Trade-off: Context Fragmentation}
+An unexpected finding is that despite higher evidence coverage, Structure-aware chunking achieves slightly lower Token F1 ($61.4$) than Fixed-size ($62.5$):
+\begin{itemize}
+    \item \textbf{Context Fragmentation:} Packing 6--8 smaller structure-aware chunks into the prompt presents the reader LLM with a discontinuous context stream separated by multiple header trails.
+    \item \textbf{Synthesis Cognitive Load:} The generator must perform cross-chunk reconciliation and resolve stitching artifacts, which slightly degrades word-level Token Precision ($58.4$ vs.\ $63.8$).
+\end{itemize}
+
+\subsection{Architectural Recommendations for Practitioners}
+Based on these trade-offs, we provide clear architectural guidelines:
+\begin{enumerate}
+    \item \textbf{Choose Fixed-Size Chunking} if your application prioritizes quick, single-hop factual lookup where only the top-1 chunk is displayed directly to the user without heavy generation synthesis.
+    \item \textbf{Choose Structure-Aware Chunking} if your system handles complex multi-hop queries, code generation, or agentic workflows where missing a single evidence span leads to catastrophic code compilation errors.
+    \item \textbf{Prompt-Based Chunking} is currently not recommended for production offline indexing due to extreme API latency, recurring monetary cost, and lack of overall empirical superiority.
+\end{enumerate}

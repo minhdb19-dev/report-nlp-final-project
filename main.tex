@@ -1,0 +1,80 @@
+\documentclass[11pt]{article}
+
+% Change "review" to "final" or remove options to disable line numbers (camera-ready mode)
+\usepackage[final]{acl}
+
+% Standard academic typography and encoding
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+% Aesthetic and spacing enhancements
+\usepackage{microtype}
+\usepackage{inconsolata}
+
+% Mathematics, symbols, and tabular enhancements
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{url}
+\usepackage{hyperref}
+
+% Author annotation macros for collaborative drafting
+\newcommand{\memberone}[1]{\textcolor{blue}{[\textbf{Member 1}: #1]}}
+\newcommand{\membertwo}[1]{\textcolor{teal}{[\textbf{Member 2}: #1]}}
+
+\title{Structure-Aware Chunking Strategies for Retrieval-Augmented Generation\\on Technical Markdown Documents}
+
+\author{
+  Co-Author One\thanks{~~Equal contribution.} \\
+  Department of Computer Science \\
+  University / Institution \\
+  \texttt{member1@example.edu} \\\And
+  Co-Author Two\footnotemark[1] \\
+  Department of Computer Science \\
+  University / Institution \\
+  \texttt{member2@example.edu} \\
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\input{sections/00_abstract}
+\end{abstract}
+
+% ==============================================================================
+% PHẦN 1 – THÀNH VIÊN 1: CƠ SỞ NGHIÊN CỨU, PHƯƠNG PHÁP VÀ DỮ LIỆU
+% ==============================================================================
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_dataset}
+\input{sections/04_chunking_strategies}
+
+% ==============================================================================
+% PHẦN 2 – THÀNH VIÊN 2: THỰC NGHIỆM, KẾT QUẢ VÀ KẾT LUẬN
+% ==============================================================================
+\input{sections/05_experimental_setup}
+\input{sections/06_results}
+\input{sections/07_discussion}
+\input{sections/08_limitations}
+\input{sections/09_conclusion}
+
+% Ethical Considerations (Phụ trách: Thành viên 1)
+\input{sections/10_ethics}
+
+% Bibliography
+\bibliography{custom}
+\bibliographystyle{acl_natbib}
+
+% ==============================================================================
+% PHỤ LỤC (APPENDICES)
+% ==============================================================================
+\appendix
+\input{sections/11_appendix_member1}
+\input{sections/12_appendix_member2}
+
+\end{document}

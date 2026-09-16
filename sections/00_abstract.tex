@@ -1,0 +1,18 @@
+% ==============================================================================
+% 00_abstract.tex
+% Phụ trách: Thành viên 2 (viết sau khi hoàn thành phần thực nghiệm và kết luận)
+% ==============================================================================
+% TODO [Thành viên 2]:
+% - Rà soát lại câu chữ tóm tắt: Bối cảnh, Phương pháp, Dữ liệu, Kết quả chính & Kết luận.
+% - Đảm bảo phản ánh đúng trade-off thực nghiệm giữa 3 phương pháp.
+% ==============================================================================
+
+Retrieval-Augmented Generation (RAG) is increasingly deployed to support developer querying over complex technical documentation. 
+However, standard pipelines predominantly rely on fixed-size sliding window chunking, which disregards the rich hierarchical syntax inherent to Markdown sources.
+In this paper, we present a controlled empirical evaluation comparing three distinct chunking strategies on technical documentation: (i)~conventional Fixed-size chunking (512 tokens, 64-token overlap), (ii)~Structure-aware chunking guided by Markdown heading hierarchy and atomic block preservation, and (iii)~Prompt-based chunking leveraging LLMs for block boundary proposal with deterministic local validation.
+We evaluate these strategies on a dedicated benchmark constructed from the official Angular documentation, comprising 384 technical documents, 140 expert-curated question-answering pairs across three difficulty tiers (60 easy, 40 medium, 40 hard), and 233 granular evidence spans with no ground-truth coupling to chunk IDs.
+Within a controlled evaluation pipeline using \texttt{text-embedding-3-small}, cosine similarity, and fixed retrieval/context token budgets (2,048 and 4,096 tokens), our results reveal nuanced trade-offs across three research questions: 
+Fixed-size chunking achieves the highest early retrieval ranking (Hit@1 and MRR) and overall answer Token F1; 
+Structure-aware chunking dominates in broad evidence recovery (Hit@10, Recall@10, Evidence Coverage, and All-Evidence-Retrieved Rate); 
+and Prompt-based chunking achieves the highest Token Recall but fails to demonstrate an overall performance advantage while incurring high latency and token overhead. 
+Our findings demonstrate that no single chunking strategy is universally optimal for all RAG objectives, highlighting the necessity of tailoring chunking paradigms to specific application trade-offs.

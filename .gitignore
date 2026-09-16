@@ -1,0 +1,19 @@
+# LaTeX intermediate compilation files
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+
+# Python cache if any
+__pycache__/
+*.pyc
+
+# OS generated files
+Thumbs.db
+.DS_Store

@@ -1,0 +1,30 @@
+% ==============================================================================
+% 09_conclusion.tex
+% Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
+% ==============================================================================
+% TODO [Thành viên 2]:
+% - Tóm tắt ngắn gọn phương pháp và quy trình thực nghiệm.
+% - Trả lời trực tiếp 3 câu hỏi nghiên cứu:
+%   * RQ1: Fixed-size ưu thế ở Hit@1/MRR, Structure-aware ưu thế ở Hit@10/Recall@10.
+%   * RQ2: Structure-aware vượt trội ở Evidence Coverage (+14.9%) và AER (+18.6%).
+%   * RQ3: Fixed-size đạt Answer F1 cao nhất; Prompt-based có Token Recall cao nhất
+%          nhưng chi phí lớn và không có lợi thế tổng thể.
+% - KẾT LUẬN CỐT LÕI: Không có một chiến lược chunking tối ưu cho mọi mục tiêu RAG.
+%   Lựa chọn phụ thuộc hoàn toàn vào trade-off giữa early ranking vs. evidence completeness.
+% ==============================================================================
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this paper, we presented a rigorous empirical study investigating the role of document structure in Retrieval-Augmented Generation over technical Markdown corpora. By systematically benchmarking Fixed-size, Structure-aware, and Prompt-based chunking on 140 expert-validated Angular QA pairs under controlled token budgets, our work delivers direct answers to the three core research questions:
+
+\begin{itemize}
+    \item \textbf{Direct Answer to RQ1 (Retrieval Ranking):} Fixed-size chunking leads in early-stage precision ($\text{Hit@}1 = 0.671$, $\text{MRR} = 0.742$) due to dense token packing and overlap. However, Structure-aware chunking achieves superior candidate recall at deeper ranks ($\text{Hit@}10 = 0.921$, $\text{Recall@}10 = 0.893$) by isolating logical sub-sections without semantic pollution.
+    
+    \item \textbf{Direct Answer to RQ2 (Evidence Recovery):} Structure-aware chunking decisively outperforms all baselines in evidence completeness, achieving $86.3\%$ Evidence Coverage and $71.4\%$ All-Evidence-Retrieved Rate, because it prevents the syntactic bisection of code listings and API tables.
+    
+    \item \textbf{Direct Answer to RQ3 (Answer Quality \& Trade-offs):} Fixed-size chunking achieves the highest overall Answer Token F1 ($62.5$) due to reduced context fragmentation for the generator. Prompt-based chunking attains the highest Token Recall ($66.8$) but fails to provide an overall performance edge while incurring extreme token latency and API expense.
+\end{itemize}
+
+\paragraph{Final Takeaway.}
+Our central conclusion is that \textit{there is no single chunking strategy that is universally optimal for every RAG objective}. System architects must choose strategically: deploy Fixed-size chunking when early-rank precision and generation conciseness are paramount, and deploy Structure-aware AST chunking when deep multi-span evidence recovery and syntactically intact code context are critical to downstream reliability.

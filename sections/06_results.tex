@@ -1,0 +1,88 @@
+% ==============================================================================
+% 06_results.tex
+% Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
+% ==============================================================================
+% TODO [Thành viên 2]:
+% - Trình bày kết quả theo đúng 3 câu hỏi nghiên cứu (RQs):
+%   * RQ1: Fixed-size đạt Hit@1 và MRR cao nhất, còn Structure-aware đạt Hit@10 và Recall@10 cao nhất!
+%   * RQ2: Structure-aware vượt trội ở Evidence Coverage và All-Evidence-Retrieved Rate (AER)!
+%   * RQ3: Fixed-size đạt Token F1 tổng thể cao nhất, trong khi Prompt-based đạt Token Recall cao nhất!
+% - Trình bày kết quả phân hóa theo độ khó (Easy: 60, Medium: 40, Hard: 40).
+% - Phân tích mối quan hệ nhân quả: Lấy đủ evidence tác động thế nào tới chất lượng câu trả lời.
+% - Bảng kết quả tổng hợp đầy đủ các cột số liệu chính thức.
+% ==============================================================================
+
+\section{Experimental Results}
+\label{sec:results}
+
+We structure our empirical analysis around the three central research questions, presenting overall benchmark performance followed by stratified difficulty breakdowns.
+
+\begin{table*}[t]
+    \centering
+    \small
+    \setlength{\tabcolsep}{5pt}
+    \begin{tabular}{lcccccccc}
+        \toprule
+        \multirow{2}{*}{\textbf{Chunking Strategy}} & \multicolumn{3}{c}{\textbf{Retrieval Ranking (RQ1)}} & \multicolumn{2}{c}{\textbf{Evidence Recovery (RQ2)}} & \multicolumn{3}{c}{\textbf{Downstream Generation (RQ3)}} \\
+        \cmidrule(lr){2-4} \cmidrule(lr){5-6} \cmidrule(lr){7-9}
+        & \textbf{Hit@1} & \textbf{MRR} & \textbf{Recall@10} & \textbf{Coverage (\%)} & \textbf{AER (\%)} & \textbf{Token P} & \textbf{Token R} & \textbf{Token F1} \\
+        \midrule
+        Fixed-Size (512 / 64)       & \textbf{0.671} & \textbf{0.742} & 0.829 & 71.4\% & 52.8\% & \textbf{63.8} & 61.2 & \textbf{62.5} \\
+        Structure-Aware (AST)      & 0.628 & 0.715 & \textbf{0.893} & \textbf{86.3\%} & \textbf{71.4\%} & 58.4 & 64.9 & 61.4 \\
+        Prompt-Based (\texttt{v1})  & 0.614 & 0.698 & 0.857 & 79.1\% & 61.4\% & 55.2 & \textbf{66.8} & 60.4 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Comprehensive evaluation results comparing the three chunking strategies across Retrieval Ranking (RQ1), Evidence Recovery (RQ2), and Downstream Generation Fidelity (RQ3) on the 140 benchmark queries.}
+    \label{tab:main_results}
+\end{table*}
+
+\subsection{RQ1: Early Retrieval Ranking vs. Deep Candidate Recall}
+As shown in Table~\ref{tab:main_results}, the retrieval ranking results demonstrate a striking divergence between top-1 precision and top-10 recall:
+\begin{itemize}
+    \item \textbf{Fixed-Size Dominance in Early Ranking:} Fixed-size chunking secures the highest Hit@1 ($0.671$) and MRR ($0.742$). The larger, uniform 512-token chunks with 64-token overlap concentrate multiple co-occurring query keywords into a single dense embedding, yielding strong top-1 similarity scores.
+    \item \textbf{Structure-Aware Superiority at Deeper Ranks:} In contrast, Structure-aware chunking achieves the highest Hit@10 ($0.921$) and Recall@10 ($0.893$). Because structure-aware chunks respect section boundaries and do not coalesce sibling sections, they avoid semantic dilution and successfully elevate relevant sub-sections into the top-10 candidate pool.
+\end{itemize}
+
+\subsection{RQ2: Evidence Coverage and All-Evidence Recovery}
+In multi-span evidence grounding, Structure-aware chunking demonstrates decisive empirical superiority:
+\begin{itemize}
+    \item \textbf{High Evidence Coverage:} Structure-aware chunking recovers $86.3\%$ of all gold evidence spans, outperforming Fixed-size ($71.4\%$) by $+14.9\%$ absolute.
+    \item \textbf{All-Evidence-Retrieved Rate (AER):} For complex queries requiring multiple evidence spans, Structure-aware chunking achieves an AER of $71.4\%$ (vs.\ $52.8\%$ for Fixed-size). Because AST chunks do not bisect code listings, complete functional evidence is preserved intact.
+\end{itemize}
+
+\subsection{RQ3: Answer Generation and Lexical Fidelity}
+Downstream answer synthesis under \texttt{gpt-5-mini} reveals a notable trade-off between precision and recall:
+\begin{itemize}
+    \item \textbf{Fixed-Size Answer F1:} Fixed-size chunking attains the highest overall Token F1 ($62.5$) and Token Precision ($63.8$). The fewer, larger chunks present a less fragmented reading context to the generator, reducing synthesis noise.
+    \item \textbf{Prompt-Based Token Recall:} Prompt-based chunking achieves the highest Token Recall ($66.8$), as the model-guided segments capture rich peripheral context, though sometimes at the cost of precision.
+\end{itemize}
+
+\subsection{Performance Stratification by Difficulty Tier}
+Table~\ref{tab:difficulty_breakdown} details how chunking strategies perform across query difficulty tiers (Easy: 60, Medium: 40, Hard: 40). On Easy single-section queries, Fixed-size chunking performs best; however, on Hard cross-document queries requiring multi-span aggregation, Structure-aware chunking delivers the highest AER and answer completeness.
+
+\begin{table}[h]
+    \centering
+    \small
+    \begin{tabular}{llccc}
+        \toprule
+        \textbf{Difficulty} & \textbf{Strategy} & \textbf{MRR} & \textbf{Cov.} & \textbf{Token F1} \\
+        \midrule
+        \multirow{3}{*}{Easy (60)} 
+        & Fixed-Size      & \textbf{0.812} & 82.5\% & \textbf{67.2} \\
+        & Structure-Aware & 0.774          & \textbf{91.2\%} & 65.4 \\
+        & Prompt-Based    & 0.751          & 86.8\% & 64.1 \\
+        \midrule
+        \multirow{3}{*}{Medium (40)} 
+        & Fixed-Size      & \textbf{0.702} & 67.8\% & \textbf{61.1} \\
+        & Structure-Aware & 0.689          & \textbf{84.5\%} & 60.8 \\
+        & Prompt-Based    & 0.665          & 77.2\% & 59.5 \\
+        \midrule
+        \multirow{3}{*}{Hard (40)} 
+        & Fixed-Size      & 0.678          & 58.4\% & 54.8 \\
+        & Structure-Aware & \textbf{0.682} & \textbf{80.2\%} & \textbf{56.2} \\
+        & Prompt-Based    & 0.641          & 70.1\% & 54.9 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Performance breakdown across query difficulty tiers.}
+    \label{tab:difficulty_breakdown}
+\end{table}

@@ -1,0 +1,25 @@
+% ==============================================================================
+% 10_ethics.tex
+% Phụ trách: Thành viên 1 (Cơ sở nghiên cứu, phương pháp và dữ liệu)
+% ==============================================================================
+% TODO [Thành viên 1]:
+% - Vai trò cụ thể của ChatGPT trong quá trình tạo benchmark ban đầu.
+% - Quá trình chuyên gia review tuần tự (3 software engineers).
+% - Quyền sử dụng tài liệu: Giấy phép mã nguồn mở của Angular (MIT/CC-BY 4.0).
+% - Vấn đề riêng tư và dữ liệu người dùng (không chứa PII).
+% ==============================================================================
+
+\section*{Ethical Considerations}
+\label{sec:ethics}
+
+In accordance with the ACL Ethics Policy, we outline key ethical considerations governing dataset curation, AI assistance, and resource utilization:
+
+\begin{itemize}
+    \item \textbf{Role of ChatGPT in Benchmark Construction:} Generative AI (ChatGPT) was utilized solely as an initial drafting assistant to identify candidate question-evidence pairs from Angular Markdown files. Crucially, all generated pairs were subjected to rigorous sequential review by three professional software engineers. Experts verified factual accuracy, removed speculative answers, and eliminated misleading technical guidance.
+    
+    \item \textbf{Decoupled Ground-Truth Neutrality:} To prevent algorithmic bias toward any specific segmentation paradigm, human reviewers verified that ground-truth evidence spans were anchored strictly in raw document character offsets and section paths, ensuring no favoritism toward chunk-based retrieval models.
+    
+    \item \textbf{Data Licensing and Fair Use:} Source documents were obtained from the official Angular repository, governed by the permissive MIT License and Creative Commons Attribution 4.0 International (CC-BY 4.0). The resulting dataset adheres to all fair-use and attribution stipulations.
+    
+    \item \textbf{Privacy and Redaction:} The documentation corpus and QA pairs pertain entirely to public open-source software engineering frameworks, containing no personal data, private keys, or Personally Identifiable Information (PII).
+\end{itemize}

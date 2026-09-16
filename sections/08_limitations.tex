@@ -1,0 +1,30 @@
+% ==============================================================================
+% 08_limitations.tex
+% Phụ trách: Thành viên 2 (Thực nghiệm, kết quả và kết luận)
+% ==============================================================================
+% TODO [Thành viên 2]:
+% - Rà soát và trình bày trung thực các giới hạn nghiên cứu:
+%   1. Miền tài liệu: Chỉ đánh giá trên tài liệu Angular bằng tiếng Anh (monolingual).
+%   2. Phạm vi benchmark: Đánh giá chi tiết bao phủ 55 trong tổng số 384 tài liệu Markdown.
+%   3. Hạn chế về ngân sách mô hình: Duy nhất 1 embedding model (text-embedding-3-small),
+%      1 generator model (gpt-5-mini), 1 ngân sách retrieval cố định (2.048 tokens).
+%   4. Đánh giá câu trả lời: Dựa trên token metrics tự động, chưa có semantic / human evaluation.
+%   5. Prompt-based sử dụng artifact lịch sử prompt_based_v1 với chi phí token cao.
+% ==============================================================================
+
+\section{Limitations}
+\label{sec:limitations}
+
+We explicitly identify the operational and methodological boundaries of this study:
+
+\begin{itemize}
+    \item \textbf{Monolingual and Framework Specificity:} Our benchmark is grounded solely in English-language documentation for the Angular web framework. While Markdown structure is universal, languages with different typographic conventions and frameworks with different code-to-text ratios may exhibit distinct chunk boundary behaviors.
+    
+    \item \textbf{Benchmark Document Coverage:} Although the full corpus contains 384 Markdown files, our intensive 140-query benchmark is anchored across a core representative subset of 55 documents. Scaling full-evidence manual annotations to all 384 files represents an important direction for future dataset releases.
+    
+    \item \textbf{Model and Budget Invariance:} Experiments were conducted using a single embedding model (\texttt{text-embedding-3-small}), a single generator (\texttt{gpt-5-mini}), and fixed token budgets (2,048 retrieval, 4,096 context). Varying embedding architectures (e.g., late-interaction ColBERT, open-weight BGE/E5) or dynamic budget thresholds could impact sensitivity to chunk length.
+    
+    \item \textbf{Answer Evaluation Limitations:} Generation quality is evaluated through lexical token metrics (Precision, Recall, F1). Semantic equivalence, LLM-as-a-judge scoring, and human developer preference studies were not incorporated due to budget constraints.
+    
+    \item \textbf{Historical Prompt-Based Artifact:} The Prompt-based evaluation relied on the historical artifact \texttt{prompt\_based\_v1.json}. Iterative prompt engineering or fine-tuned chunking models may yield improved efficiency in future iterations.
+\end{itemize}

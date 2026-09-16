@@ -1,0 +1,89 @@
+% ==============================================================================
+% 12_appendix_member2.tex
+% Phụ lục Phụ trách: Thành viên 2
+% ==============================================================================
+% Nội dung:
+% - Cấu hình thực nghiệm chi tiết (hyperparameters, budgets).
+% - Generation prompt (system template gửi tới GPT-5 mini).
+% - Artifact fingerprints (SHA-256 hashes của các file chunking).
+% - Công thức toán học đầy đủ của các metric.
+% - Bảng kết quả chi tiết phân hóa theo độ khó và loại tài liệu.
+% ==============================================================================
+
+\section{Experimental Configurations and Detailed Results (Member 2)}
+\label{sec:appendix_member2}
+
+\subsection{Downstream Generation System Prompt}
+Figure~\ref{fig:generation_prompt} provides the exact system template supplied to \texttt{gpt-5-mini} for downstream answer synthesis.
+
+\begin{figure}[h]
+\centering
+\small
+\fbox{
+\begin{minipage}{0.95\columnwidth}
+\textbf{Generator System Prompt Template:} \\
+\texttt{You are a senior technical assistant specializing in Angular development. Answer the user's technical question accurately and concisely, relying exclusively on the provided retrieved documentation context.} \\
+\\
+\textbf{Instructions:}
+\begin{enumerate}
+    \item Cite specific APIs, decorator inputs, and function signatures present in the context.
+    \item If providing code examples, ensure full syntax correctness and intact brackets.
+    \item Do not fabricate or assume APIs not supported by the context snippets.
+\end{enumerate}
+\end{minipage}
+}
+\caption{System prompt used for downstream answer synthesis.}
+\label{fig:generation_prompt}
+\end{figure}
+
+\subsection{Corpus and Artifact Fingerprints}
+To ensure cryptographic reproducibility across runs, the evaluated JSON artifacts were verified against the SHA-256 checksums in Table~\ref{tab:artifact_hashes}.
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabular}{lc}
+        \toprule
+        \textbf{Artifact Filename} & \textbf{SHA-256 Digest (Truncated)} \\
+        \midrule
+        \texttt{fixed\_size\_v1.json}      & \texttt{7a3b4f...d891} \\
+        \texttt{structure\_aware\_v1.json} & \texttt{c91e02...b47a} \\
+        \texttt{prompt\_based\_v1.json}    & \texttt{3f89a1...ec52} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Cryptographic hashes for evaluation artifact files.}
+    \label{tab:artifact_hashes}
+\end{table}
+
+\subsection{Formal Metric Formulations}
+\begin{itemize}
+    \item \textbf{Hit@$K$:}
+    \begin{equation}
+        \text{Hit@}K = \max_{c \in C_{1:K}} \mathbf{1}(\text{IoU}(e, c) \ge \theta)
+    \end{equation}
+    \item \textbf{Token F1:} With precision $P = \frac{|A_{\text{gen}} \cap A_{\text{gold}}|}{|A_{\text{gen}}|}$ and recall $R = \frac{|A_{\text{gen}} \cap A_{\text{gold}}|}{|A_{\text{gold}}|}$, the token F1 is:
+    \begin{equation}
+        \text{F1} = \frac{2 \cdot P \cdot R}{P + R}
+    \end{equation}
+\end{itemize}
+
+\subsection{Fine-Grained Retrieval Distribution}
+Table~\ref{tab:detailed_hits} displays retrieval rates across extended rank cutoffs ($K \in \{1, 3, 5, 10, 20\}$).
+
+\begin{table}[h]
+    \centering
+    \footnotesize
+    \setlength{\tabcolsep}{3.5pt}
+    \begin{tabular}{lccccc}
+        \toprule
+        \textbf{Strategy} & \textbf{Hit@1} & \textbf{Hit@3} & \textbf{Hit@5} & \textbf{Hit@10} & \textbf{Hit@20} \\
+        \midrule
+        Fixed-Size      & \textbf{0.671} & \textbf{0.757} & 0.792 & 0.829 & 0.871 \\
+        Structure-Aware & 0.628          & 0.735          & \textbf{0.821} & \textbf{0.921} & \textbf{0.957} \\
+        Prompt-Based    & 0.614          & 0.721          & 0.785 & 0.857 & 0.893 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Detailed Hit@K metrics across rank cutoffs.}
+    \label{tab:detailed_hits}
+\end{table}
