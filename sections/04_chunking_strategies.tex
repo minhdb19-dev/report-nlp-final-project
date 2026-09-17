@@ -1,5 +1,26 @@
-\section{Chunking Strategies}
-\label{sec:chunking_strategies}
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur et tempus magna. Mauris ut metus nec nunc consectetur scelerisque quis eu tortor. Integer porttitor egestas mollis. In fermentum elit cursus eros cursus, eget cursus sapien imperdiet. Quisque vulputate porta metus ac laoreet. Aenean viverra luctus interdum. Sed a faucibus neque. Vivamus iaculis ipsum non felis porttitor ornare.
+% 04_chunking_strategies.tex
+% Phụ trách: Thành viên 1
+% ==============================================================================
 
-Aenean at maximus sapien. Duis varius metus nec est fermentum, eget commodo arcu tristique. Duis ullamcorper pharetra mattis. Fusce blandit luctus velit, at semper purus venenatis nec. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Nunc eget rhoncus ipsum. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Aenean erat ante, facilisis eu sapien at, semper malesuada odio.
+\section{Chunking Strategies}
+\label{sec:chunking-strategies}
+
+Nghiên cứu so sánh ba chiến lược chunking trên cùng corpus. Mỗi chiến lược tạo một tập chunk độc lập, trong đó kích thước mỗi chunk không vượt quá 512 token.
+
+\subsection{Fixed-size Chunking}
+
+Fixed-size tuyến tính hóa tài liệu theo thứ tự nguồn và chia văn bản thành các cửa sổ 512 token, với 64 token overlap giữa hai cửa sổ liên tiếp. Phương pháp không sử dụng heading hoặc cấu trúc phân cấp khi xác định ranh giới. Kết quả tạo ra 1,300 chunks và được lưu thành artifact \texttt{fixed\_size\_v1}.
+
+\subsection{Structure-aware Chunking}
+
+Structure-aware sử dụng heading hierarchy của Markdown và giữ lại đường dẫn heading cho từng chunk. Nội dung được đóng gói theo từng section, không gộp các sibling section và không sử dụng overlap.
+
+Khi một đơn vị nội dung vượt quá 512 token, paragraph được chia theo câu, code block theo dòng, list theo item và table theo hàng. Phương pháp tạo ra 3,162 chunks và được lưu thành artifact \texttt{structure\_aware\_v1}.
+
+\subsection{Prompt-based Chunking}
+
+Prompt-based biểu diễn tài liệu dưới dạng chuỗi block có thứ tự và sử dụng language model để đề xuất các khoảng block liên tục làm ranh giới chunk. Mô hình chỉ xác định ranh giới, không tóm tắt hoặc viết lại nội dung.
+
+Các đề xuất được local code kiểm tra về độ bao phủ, thứ tự, provenance và giới hạn 512 token trước khi tạo chunk. Phương pháp tạo ra 2,054 chunks và được lưu thành artifact \texttt{prompt\_based\_v1}.
+
+Ba artifact trên được chuyển trực tiếp vào cùng một embedding, retrieval và answer generation pipeline. Phần tiếp theo trình bày cách kiểm soát các thành phần này để chiến lược chunking là biến độc lập duy nhất trong thực nghiệm.
