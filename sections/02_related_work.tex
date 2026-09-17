@@ -1,46 +1,33 @@
-% ==============================================================================
 % 02_related_work.tex
-% Phụ trách: Thành viên 1 (Cơ sở nghiên cứu, phương pháp và dữ liệu)
-% ==============================================================================
-% TODO [Thành viên 1]:
-% - Phân loại chi tiết 5 nhóm phương pháp chunking:
-%   1. Fixed-size chunking (token / character window).
-%   2. Sentence / paragraph-based chunking.
-%   3. Semantic chunking (dựa trên embedding similarity giữa các câu).
-%   4. Structure-aware chunking (dựa trên AST, heading hierarchy, syntax blocks).
-%   5. LLM-assisted / prompt-based chunking.
-% - Tổng hợp các hướng đánh giá RAG ở 3 cấp độ:
-%   * Cấp retrieval (Hit@K, MRR, Recall@K).
-%   * Cấp evidence (Evidence Coverage, All-Evidence-Retrieved Rate).
-%   * Cấp câu trả lời (Token F1, BLEU/ROUGE, human eval).
-% - Xác định rõ khoảng trống nghiên cứu (research gap) mà đề tài hướng đến.
+% Phụ trách: Thành viên 1
 % ==============================================================================
 
 \section{Related Work}
-\label{sec:related_work}
+\label{sec:related-work}
 
-Document segmentation and retrieval grounding constitute critical bottlenecks in modern Retrieval-Augmented Generation. We synthesize existing literature across chunking taxonomies, RAG evaluation methodologies, and research gaps.
+\subsection{Chunking Strategies}
 
-\subsection{Taxonomy of Chunking Methodologies}
-Existing approaches to document partitioning can be broadly categorized into five primary paradigms:
-\begin{enumerate}
-    \item \textbf{Fixed-Size Chunking:} Traditional sliding window techniques partition raw text into fixed token or character lengths with a static overlap stride \citep{karpukhin2020dense, lewis2020retrieval}. While computationally optimal, they ignore syntactic boundaries.
-    \item \textbf{Sentence and Paragraph-Based Chunking:} Utilizes rule-based tokenizers or regular expressions to break documents at punctuation marks or double newline delimiters, ensuring that natural language sentences remain intact but disregarding multi-level heading hierarchies and indented code blocks.
-    \item \textbf{Semantic Chunking:} Evaluates vector distance between consecutive sentences or sliding groups using embedding models. Splits are created where cosine similarity dips below an adaptive threshold. However, semantic similarity calculations are expensive and become noisy when parsing technical code listings.
-    \item \textbf{Structure-Aware Chunking:} Exploits document syntax representations (such as HTML DOM trees, ASTs, or Markdown headers) to partition content along author-defined logical boundaries \citep{cast2023ast, hichunk2024}. Breadcrumb paths are maintained to retain contextual lineage.
-    \item \textbf{LLM-Assisted Chunking:} Employs instruction-tuned LLMs to identify semantic transition points or summarize self-contained sections. While highly adaptive, it introduces substantial inference latency, token cost, and non-deterministic formatting.
-\end{enumerate}
+Chunking quyết định đơn vị văn bản được embedding và truy xuất trong hệ thống RAG \citep{lewis-etal-2020-rag}. Các phương pháp hiện có có thể được phân thành năm nhóm chính.
 
-\subsection{Multi-Tiered RAG Evaluation Frameworks}
-Evaluating RAG systems requires assessing performance across three distinct operational layers:
-\begin{itemize}
-    \item \textbf{Retrieval-Level Evaluation:} Focuses purely on the ranking position of relevant documents using information retrieval metrics such as Hit@$K$, Mean Reciprocal Rank (MRR), and Recall@$K$ \citep{karpukhin2020dense}.
-    \item \textbf{Evidence-Level Evaluation:} Measures whether the specific ground-truth evidence spans necessary to answer the query are fully contained within the assembled context window, as formalized in benchmarks like QASPER \citep{dasigi2021qasper} and HiCBench \citep{hicbench2024}.
-    \item \textbf{Answer-Level Evaluation:} Assesses the final synthesized response using lexical metrics (Token Precision, Token Recall, Token F1), n-gram overlap (ROUGE-L), or LLM-as-a-judge evaluation.
-\end{itemize}
+\paragraph{Fixed-size chunking.}
+Phương pháp này chia văn bản thành các cửa sổ có số token hoặc ký tự cố định, thường kèm overlap để giảm mất thông tin tại ranh giới. Fixed-size dễ triển khai và kiểm soát chi phí, nhưng không xét đến cấu trúc hoặc tính liên kết ngữ nghĩa của nội dung \citep{qu-etal-2025-semantic}.
 
-\subsection{Identified Research Gap}
-While prior benchmarks examine academic papers \citep{dasigi2021qasper} or generic web pages, systematic empirical investigations into technical Markdown documentation remain sparse. 
-Critically, existing studies often conflate chunking strategies with specific retrieval algorithms or vary chunk budgets inconsistently. 
-Furthermore, few works jointly evaluate the interplay between retrieval ranking, multi-span evidence recovery, and downstream answer fidelity under identical token budgets. 
-Our study directly addresses this research gap by providing a controlled, multi-tier evaluation on an authentic software engineering documentation corpus.
+\paragraph{Sentence- and paragraph-based chunking.}
+Nhóm phương pháp này sử dụng câu hoặc đoạn văn làm ranh giới tự nhiên. Cách tiếp cận này hạn chế việc cắt giữa câu nhưng có thể tạo ra các chunk có kích thước không đồng đều hoặc tách rời những phần nội dung phụ thuộc lẫn nhau \citep{qu-etal-2025-semantic}.
+
+\paragraph{Semantic chunking.}
+Semantic chunking xác định ranh giới dựa trên mức độ tương đồng embedding giữa các câu liên tiếp. Mục tiêu là duy trì tính liên kết ngữ nghĩa, nhưng phương pháp này làm tăng chi phí xử lý và chưa cho thấy lợi ích nhất quán so với fixed-size chunking \citep{qu-etal-2025-semantic}.
+
+\paragraph{Structure-aware chunking.}
+Structure-aware chunking khai thác heading hierarchy, paragraph, list, table, code block hoặc abstract syntax tree (AST). Các thành phần có quan hệ được tổ chức theo cấu trúc phân cấp nhằm bảo toàn ngữ cảnh của tài liệu \citep{jain-etal-2025-autochunker}.
+
+\paragraph{LLM-assisted chunking.}
+LLM-assisted hoặc prompt-based chunking sử dụng language model để xác định các đơn vị nội dung và đề xuất ranh giới linh hoạt. Các phương pháp như PIC và AutoChunker cho thấy khả năng kết hợp tín hiệu ngữ nghĩa với cấu trúc tài liệu, nhưng yêu cầu thêm chi phí suy luận và cơ chế kiểm soát đầu ra \citep{wang-etal-2025-document,jain-etal-2025-autochunker}.
+
+\subsection{Evaluation of RAG Systems}
+
+Đánh giá RAG thường được thực hiện ở nhiều cấp độ \citep{yu-etal-2024-rag-evaluation}. Ở cấp retrieval, Hit@\(K\), Recall@\(K\) và Mean Reciprocal Rank (MRR) đo khả năng truy xuất và xếp hạng nguồn liên quan. Ở cấp evidence, Evidence Coverage và All-Evidence-Retrieved Rate phản ánh mức độ thu hồi các bằng chứng cần thiết. Ở cấp câu trả lời, các chỉ số như Token F1, BLEU và ROUGE đo mức độ tương đồng với đáp án tham chiếu; human evaluation có thể bổ sung đánh giá về tính chính xác và đầy đủ. Việc phân biệt ba cấp độ là cần thiết vì cải thiện retrieval hoặc evidence recovery không nhất thiết dẫn đến chất lượng câu trả lời cao hơn \citep{qu-etal-2025-semantic}.
+
+\subsection{Research Gap}
+
+Các nghiên cứu gần đây đã so sánh fixed-size với semantic chunking hoặc đề xuất phương pháp phân đoạn mới \citep{qu-etal-2025-semantic,wang-etal-2025-document}. Tuy nhiên, tác động của việc bảo toàn cấu trúc tài liệu đến retrieval ranking, evidence recovery và answer quality vẫn chưa được đánh giá đầy đủ trong cùng một thiết lập trên tài liệu kỹ thuật có cấu trúc. Nghiên cứu này giải quyết khoảng trống đó bằng cách so sánh fixed-size, structure-aware và prompt-based chunking trong một pipeline được kiểm soát, đồng thời đánh giá riêng biệt cả ba cấp độ.

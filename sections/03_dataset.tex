@@ -13,49 +13,85 @@
 % - Giải thích tiêu chí thiết kế độ khó và các nhóm câu hỏi trong benchmark.
 % ==============================================================================
 
-\section{Benchmark Dataset Construction}
+% 03_dataset.tex
+% Phụ trách: Thành viên 1
+% ==============================================================================
+
+\section{Corpus and QA Benchmark}
 \label{sec:dataset}
 
-To evaluate chunking strategies on realistic technical software corpora, we construct a dedicated evaluation benchmark based on the official Angular documentation \citep{angular2024docs}.
+\subsection{Technical Document Corpus}
 
-\subsection{Corpus and Preprocessing}
-The source corpus consists of 384 Markdown documents extracted from the official Angular core documentation repository. 
-Each document exhibits authentic developer-facing structural patterns:
+Corpus gồm 384 tài liệu kỹ thuật Angular ở định dạng Markdown. Các tài liệu có cấu trúc phân cấp thông qua heading và chứa nhiều loại block như paragraph, list, table, code block và callout. Đặc điểm này cho phép đánh giá ảnh hưởng của việc bảo toàn cấu trúc tài liệu trong quá trình chunking.
+
+Trong bước tiền xử lý, mỗi tài liệu được phân tích thành chuỗi block theo thứ tự xuất hiện trong nguồn. Đối với mỗi block, hệ thống lưu loại nội dung, văn bản gốc và đường dẫn heading tương ứng. Nội dung không được tóm tắt hoặc viết lại nhằm bảo toàn bằng chứng nguồn cho quá trình đánh giá.
+
+\subsection{QA Benchmark Construction}
+
+Do chưa có benchmark phù hợp trực tiếp với corpus và mục tiêu nghiên cứu, nhóm xây dựng một bộ câu hỏi--trả lời có gắn bằng chứng nguồn. ChatGPT được sử dụng để hỗ trợ tạo câu hỏi ứng viên, đáp án tham chiếu và vùng bằng chứng ban đầu. Các đầu ra này chỉ được xem là bản nháp và không được đưa trực tiếp vào benchmark cuối cùng.
+
+Mỗi mẫu sau đó trải qua \textit{sequential expert review} bởi ba kỹ sư phần mềm có từ bốn đến năm năm kinh nghiệm. Các chuyên gia lần lượt kiểm tra và chỉnh sửa câu hỏi, đáp án, loại câu hỏi, kiểu suy luận, độ khó và bằng chứng nguồn. Một mẫu chỉ được chấp nhận khi có thể trả lời đầy đủ từ corpus và không phụ thuộc vào kiến thức bên ngoài.
+
+\subsection{Data Structure and Chunk-Neutral Ground Truth}
+
+Mỗi QA record gồm các trường chính sau:
+
 \begin{itemize}
-    \item \textbf{Syntactic Components:} Markdown headers (\texttt{\#}, \texttt{\#\#}, \texttt{\#\#\#}, \texttt{\#\#\#\#}), YAML frontmatter metadata, TypeScript/HTML fenced code listings, bulleted itemizations, and custom callout blocks (\texttt{NOTE}, \texttt{HELPFUL}, \texttt{CRITICAL}).
-    \item \textbf{Preprocessing Pipeline:} Frontmatter metadata is normalized into structured attributes. Embedded raw HTML tags are sanitized, while relative asset links are canonicalized. Document heading trees are parsed into hierarchical symbol paths.
+    \item \texttt{question\_id}: mã định danh của câu hỏi;
+    \item \texttt{question}: nội dung câu hỏi;
+    \item \texttt{reference\_answer}: đáp án tham chiếu;
+    \item \texttt{difficulty}: mức độ easy, medium hoặc hard;
+    \item \texttt{question\_type}: loại câu hỏi;
+    \item \texttt{reasoning\_type}: kiểu suy luận cần thiết;
+    \item \texttt{evidence}: danh sách các evidence item.
 \end{itemize}
 
-\subsection{Benchmark Construction and Expert Review}
-We followed a rigorous human-in-the-loop curation workflow:
-\begin{enumerate}
-    \item \textbf{LLM-Assisted Generation:} Candidate question-answer pairs and candidate evidence spans were drafted by querying ChatGPT (\texttt{gpt-4o}) with source document sections.
-    \item \textbf{Sequential Expert Review:} Three professional software engineers specializing in Angular and web architecture reviewed each candidate record sequentially. Reviewers verified API accuracy, verified evidence boundaries, and refined question phrasing to reflect authentic developer search intents.
-    \item \textbf{Decoupled Ground Truth Principle:} A core methodological design requirement was that \textit{ground-truth evidence spans must never be tied to specific chunk IDs}. Instead, evidence is recorded as raw character offsets, section headings, and exact text spans within the source document. This ensures absolute neutrality when evaluating arbitrary chunking strategies.
-\end{enumerate}
+Mỗi evidence item lưu mã bằng chứng, mã tài liệu, đường dẫn section và các câu chứa bằng chứng. Ground truth được liên kết với nội dung tài liệu gốc thay vì chunk được tạo bởi một phương pháp cụ thể. Benchmark không lưu \texttt{chunk\_id}, \texttt{relevant\_chunk\_id} hoặc nhãn phụ thuộc vào chiến lược chunking. Nguyên tắc này cho phép cùng một ground truth được sử dụng công bằng cho fixed-size, structure-aware và prompt-based chunking.
 
-\subsection{Dataset Statistics and Difficulty Stratification}
-The finalized benchmark comprises 140 QA records grounded in 233 distinct evidence items. We stratify queries into three difficulty levels based on structural scope:
-\begin{itemize}
-    \item \textbf{Easy (60 queries):} Single-section retrieval. The required evidence resides entirely within a single localized subsection or code block.
-    \item \textbf{Medium (40 queries):} Cross-section retrieval. Answering the query requires synthesizing evidence from two or more distinct sections within the same document.
-    \item \textbf{Hard (40 queries):} Cross-document retrieval. Grounding requires identifying and aggregating evidence spans distributed across distinct documentation files.
-\end{itemize}
+\subsection{Benchmark Statistics}
+
+Benchmark cuối cùng gồm 140 câu hỏi và 233 evidence items. Phân bố theo độ khó được trình bày trong Bảng~\ref{tab:difficulty-distribution}.
 
 \begin{table}[t]
-    \centering
-    \small
-    \begin{tabular}{lcccc}
-        \toprule
-        \textbf{Scope / Difficulty} & \textbf{Queries} & \textbf{Evidence Items} & \textbf{Mean Ev./Query} \\
-        \midrule
-        Easy (Single-Section)    & 60  & 82  & 1.37 \\
-        Medium (Cross-Section)  & 40  & 76  & 1.90 \\
-        Hard (Cross-Document)   & 40  & 75  & 1.88 \\
-        \midrule
-        \textbf{Total Benchmark} & \textbf{140} & \textbf{233} & \textbf{1.66} \\
-        \bottomrule
-    \end{tabular}
-    \caption{Stratified statistics of the Angular documentation benchmark across difficulty tiers and structural scopes.}
-    \label{tab:dataset_statistics}
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+\textbf{Độ khó} & \textbf{Số câu} & \textbf{Tỷ lệ} \\
+\midrule
+Easy   & 60  & 42.9\% \\
+Medium & 40  & 28.6\% \\
+Hard   & 40  & 28.6\% \\
+\midrule
+Tổng   & 140 & 100.0\% \\
+\bottomrule
+\end{tabular}
+\caption{Phân bố câu hỏi theo độ khó.}
+\label{tab:difficulty-distribution}
 \end{table}
+
+Các câu hỏi còn được phân loại theo phạm vi bằng chứng. \textit{Single-section} sử dụng bằng chứng trong một section; \textit{cross-section} kết hợp nhiều section trong cùng tài liệu; và \textit{cross-document} yêu cầu bằng chứng từ nhiều tài liệu. Phân bố tương ứng được trình bày trong Bảng~\ref{tab:evidence-scope}.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lr}
+\toprule
+\textbf{Phạm vi bằng chứng} & \textbf{Số câu} \\
+\midrule
+Single-section & 50 \\
+Cross-section  & 60 \\
+Cross-document & 30 \\
+\midrule
+Tổng           & 140 \\
+\bottomrule
+\end{tabular}
+\caption{Phân bố câu hỏi theo phạm vi bằng chứng.}
+\label{tab:evidence-scope}
+\end{table}
+
+\subsection{Difficulty Design}
+
+Độ khó được xác định dựa trên số vùng bằng chứng, độ phức tạp suy luận, mức độ phụ thuộc giữa các phần tài liệu và phạm vi thông tin cần bao phủ. Tất cả câu hỏi đều phải có đủ bằng chứng trong corpus; nhãn hard không biểu thị câu hỏi mơ hồ hoặc thiếu thông tin.
+
+Câu hỏi easy chủ yếu thuộc nhóm fact hoặc definition và dựa trên một vùng bằng chứng cục bộ. Câu hỏi medium yêu cầu kết hợp hai evidence items, thường thuộc các nhóm comparison, procedure, cause--effect hoặc multi-fact synthesis. Trong 40 câu medium, 27 câu có hai evidence items trong cùng một section và 13 câu sử dụng bằng chứng từ nhiều section. Câu hỏi hard kết hợp từ hai đến ba vùng bằng chứng và có thể yêu cầu tổng hợp, phân tích trade-off, theo dõi thay đổi trạng thái hoặc đối chiếu thông tin phân tán.
